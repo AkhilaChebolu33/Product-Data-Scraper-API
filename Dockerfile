@@ -1,20 +1,21 @@
-# Use the official Playwright image with Python and all dependencies
-FROM mcr.microsoft.com/playwright/python:v1.55.0-jammy
+# Use an official Python runtime as a parent image
+FROM python:3.10-slim
 
-# Set working directory
+# Set the working directory in the container
 WORKDIR /app
 
-# Copy project files
-COPY . .
+# Copy the current directory contents into the container at /app
+COPY . /app
 
-# Install Python dependencies
+# Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose the port your app runs on
-EXPOSE 10000
+# Make port 8000 available to the world outside this container
+EXPOSE 8000
 
-# Set default environment variable for PORT if not provided
-ENV PORT=10000
+# Define environment variable for OpenAI API key
+ENV OPENAI_API_KEY="your_openai_api_key_here"
 
-# Start the Flask app using Gunicorn with extended timeout
-CMD ["gunicorn", "--workers=1", "--timeout=300", "--bind", "0.0.0.0:10000", "app:app"]
+# Run the FastAPI app using uvicorn
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+
