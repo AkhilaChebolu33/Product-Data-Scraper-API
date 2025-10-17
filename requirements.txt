@@ -1,6 +1,4 @@
-fastapi
-uvicorn
+flask
+playwright
+gunicorn
 requests
-beautifulsoup4
-langchain
-openai

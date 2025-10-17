@@ -1,136 +1,166 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from flask import Flask, request, jsonify
+from playwright.async_api import async_playwright
+import asyncio
+import os
+import threading
+import time
 import requests
-from bs4 import BeautifulSoup
-import json
-from urllib.parse import urljoin
-from langchain import OpenAI, LLMChain
-from langchain.prompts import PromptTemplate
+from urllib.parse import urlparse
 
-app = FastAPI()
+app = Flask(__name__)
 
-class URLRequest(BaseModel):
-    url: str
+def get_retailer_domain(url):
+    return urlparse(url).netloc.lower()
 
-# Function to fetch product data using Langchain
-def fetch_product_data_with_langchain(url):
-    # Define a prompt for Langchain
-    template = """Extract product details from the given webpage.
-    URL: {url}
-    Extracted Data Format:
-    {{
-        "product_name": "",
-        "product_price": "",
-        "product_url": "",
-        "product_image_url": "",
-        "product_description": ""
-    }}"""
-    
-    # Instantiate an OpenAI LLM
-    openai_llm = OpenAI()
-    
-    # Create a prompt with the URL as input
-    prompt = PromptTemplate(template=template, input_variables=["url"])
-    chain = LLMChain(llm=openai_llm, prompt=prompt)
-    
-    # Run Langchain to retrieve product data
-    response = chain.run({"url": url})
-    
-    # Parse the response from Langchain
+@app.route('/scrape-product', methods=['POST'])
+def scrape_product():
+    data = request.get_json()
+    url = data.get('url')
+
+    if not url:
+        return jsonify({'error': 'Missing product URL'}), 400
+
+    async def run_scraper():
+        domain = get_retailer_domain(url)
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True, args=['--disable-dev-shm-usage'])
+            context = await browser.new_context(ignore_https_errors=True)
+            page = await context.new_page()
+
+            price = None
+            image_url = None
+
+            try:
+                await page.goto(url, timeout=60000)
+                await page.wait_for_load_state('networkidle')
+                await page.wait_for_timeout(4000)
+
+                # -------------------------
+                # LOWE'S
+                # -------------------------
+                if "lowes.com" in domain:
+                    try:
+                        await page.wait_for_selector('[data-testid="product-price"]', timeout=10000)
+                        el = await page.query_selector('[data-testid="product-price"]')
+                        price = await el.inner_text() if el else None
+                        if price:
+                            price = price.strip()
+                    except:
+                        pass
+
+                    if not price:
+                        # fallback
+                        dollar_span = await page.query_selector('span.item-price-dollar')
+                        cent_div = await page.query_selector('div.item-price-cent')
+                        dollar = await dollar_span.inner_text() if dollar_span else ''
+                        cent = await cent_div.inner_text() if cent_div else ''
+                        if dollar:
+                            price = f"${dollar}{cent}"
+
+                    img = await page.query_selector('meta[property="og:image"]')
+                    image_url = await img.get_attribute('content') if img else None
+
+                # -------------------------
+                # HOME DEPOT
+                # -------------------------
+                elif "homedepot.com" in domain:
+                    try:
+                        await page.wait_for_selector('.price-format__large-price', timeout=10000)
+                        el = await page.query_selector('.price-format__large-price')
+                        price = await el.inner_text() if el else None
+                    except:
+                        pass
+
+                    if not price:
+                        el = await page.query_selector('[itemprop="price"]')
+                        if el:
+                            price = await el.get_attribute('content')
+
+                    img = await page.query_selector('meta[property="og:image"]')
+                    image_url = await img.get_attribute('content') if img else None
+
+                # -------------------------
+                # AMAZON
+                # -------------------------
+                elif "amazon.com" in domain:
+                    try:
+                        await page.wait_for_selector('#corePriceDisplay_desktop_feature_div', timeout=10000)
+                        el = await page.query_selector('#corePriceDisplay_desktop_feature_div span.a-price span.a-offscreen')
+                        price = await el.inner_text() if el else None
+                    except:
+                        pass
+
+                    if not price:
+                        el = await page.query_selector('#priceblock_ourprice, #priceblock_dealprice')
+                        price = await el.inner_text() if el else None
+
+                    img = await page.query_selector('#landingImage')
+                    image_url = await img.get_attribute('src') if img else None
+
+                # -------------------------
+                # WALMART
+                # -------------------------
+                elif "walmart.com" in domain:
+                    try:
+                        await page.wait_for_selector('span[itemprop="price"]', timeout=10000)
+                        el = await page.query_selector('span[itemprop="price"]')
+                        price = await el.inner_text() if el else None
+                    except:
+                        pass
+
+                    if not price:
+                        el = await page.query_selector('[data-automation-id="product-price"]')
+                        price = await el.inner_text() if el else None
+
+                    img = await page.query_selector('meta[property="og:image"]')
+                    image_url = await img.get_attribute('content') if img else None
+
+                # -------------------------
+                # FALLBACK — OG IMAGE / META PRICE
+                # -------------------------
+                if not image_url:
+                    og_img = await page.query_selector('meta[property="og:image"]')
+                    image_url = await og_img.get_attribute('content') if og_img else None
+
+                if not price:
+                    meta_price = await page.query_selector('meta[itemprop="price"]')
+                    price = await meta_price.get_attribute('content') if meta_price else None
+
+                await browser.close()
+                return {
+                    'image_url': image_url or 'Not found',
+                    'price': price.strip() if price else 'Not found'
+                }
+
+            except Exception as e:
+                await browser.close()
+                return {'error': f'Scraping failed: {str(e)}'}
+
     try:
-        extracted_data = json.loads(response)
-    except json.JSONDecodeError:
-        return None
-    
-    return extracted_data
+        result = asyncio.run(asyncio.wait_for(run_scraper(), timeout=90))
+        return jsonify(result)
+    except asyncio.TimeoutError:
+        return jsonify({'error': 'Scraping timed out'}), 504
 
-# Function to fetch product data from JSON-LD (fallback method)
-def fetch_product_data_from_jsonld(soup):
-    jsonld_script = soup.find('script', type='application/ld+json')
-    if not jsonld_script:
-        return None
+@app.route('/')
+def home():
+    return "Service is running"
 
-    try:
-        jsonld_data = json.loads(jsonld_script.string)
-    except json.JSONDecodeError:
-        return None
+def keep_alive():
+    def ping():
+        while True:
+            try:
+                requests.get("https://your-app-url.onrender.com")
+                print("[INFO] Keep-alive ping successful")
+            except Exception as e:
+                print(f"[WARNING] Keep-alive ping failed: {e}")
+            time.sleep(30)
 
-    if isinstance(jsonld_data, list):
-        product_data = next((item for item in jsonld_data if item.get('@type') == 'Product'), None)
-        if not product_data:
-            return None
-    elif isinstance(jsonld_data, dict) and jsonld_data.get('@type') == 'Product':
-        product_data = jsonld_data
-    else:
-        return None
+    thread = threading.Thread(target=ping)
+    thread.daemon = True
+    thread.start()
 
-    offers = product_data.get('offers')
-    if isinstance(offers, list):
-        product_price = next((offer.get('price') for offer in offers if offer.get('price')), '')
-    elif isinstance(offers, dict):
-        product_price = offers.get('price', '')
-    else:
-        product_price = ''
-
-    extracted_data = {
-        "product_name": product_data.get('name', ''),
-        "product_price": product_price,
-        "product_url": product_data.get('url', ''),
-        "product_image_url": product_data.get('image', ''),
-        "product_description": product_data.get('description', '')
-    }
-
-    return extracted_data
-
-# Function to fetch product data from meta tags (fallback method)
-def fetch_product_data_from_meta(soup, base_url):
-    product_name = soup.find('meta', attrs={'property': 'og:title'}) or soup.find('meta', attrs={'name': 'twitter:title'})
-    product_price = soup.find('meta', attrs={'property': 'product:price:amount'}) or soup.find('meta', attrs={'name': 'price'})
-    product_url = soup.find('meta', attrs={'property': 'og:url'}) or soup.find('meta', attrs={'name': 'twitter:url'})
-    product_image_url = soup.find('meta', attrs={'property': 'og:image'}) or soup.find('meta', attrs={'name': 'twitter:image'})
-    product_description = soup.find('meta', attrs={'property': 'og:description'}) or soup.find('meta', attrs={'name': 'twitter:description'})
-
-    extracted_data = {
-        "product_name": product_name['content'] if product_name else '',
-        "product_price": product_price['content'] if product_price else '',
-        "product_url": product_url['content'] if product_url else '',
-        "product_image_url": urljoin(base_url, product_image_url['content']) if product_image_url else '',
-        "product_description": product_description['content'] if product_description else ''
-    }
-
-    return extracted_data
-
-# Fallback function to fetch product data from a webpage using BeautifulSoup
-def fetch_product_data_fallback(url):
-    response = requests.get(url)
-    if response.status_code != 200:
-        return None
-
-    soup = BeautifulSoup(response.text, 'html.parser')
-
-    # Try to fetch product data from JSON-LD
-    product_data = fetch_product_data_from_jsonld(soup)
-    if product_data:
-        return product_data
-
-    # If JSON-LD is not available, fetch product data from meta tags
-    return fetch_product_data_from_meta(soup, url)
-
-@app.post('/scrape')
-def scrape_product(request: URLRequest):
-    # First try to fetch product data using Langchain
-    product_data = fetch_product_data_with_langchain(request.url)
-    if product_data:
-        return product_data
-    
-    # If Langchain extraction fails, use fallback methods
-    product_data = fetch_product_data_fallback(request.url)
-    if product_data:
-        return product_data
-    
-    # If no product data is found, return an error
-    raise HTTPException(status_code=404, detail="No product data found.")
+keep_alive()
 
 if __name__ == '__main__':
-    import uvicorn
-    uvicorn.run(app, host='0.0.0.0', port=8000)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
