@@ -29,8 +29,8 @@ def scrape_product():
                 headless=True, 
                 proxy={
                     "server": "http://your-proxy-server:port",  # e.g., "http://proxy.example.com:8080"
-                    "username": "your-username",                # optional
-                    "password": "your-password"                 # optional
+                    "username": "achebolu@na.chervongroup.com",                # optional
+                    "password": "HelloWorld123"                 # optional
                 },
                 args=['--disable-dev-shm-usage']
             )
