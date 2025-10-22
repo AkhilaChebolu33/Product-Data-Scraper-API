@@ -24,95 +24,84 @@ def scrape_product():
         domain = get_retailer_domain(url)
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True, args=['--disable-dev-shm-usage'])
-            context = await browser.new_context(ignore_https_errors=True)
+            context = await browser.new_context(
+                ignore_https_errors=True,
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                           "(KHTML, like Gecko) Chrome/118.0.5993.118 Safari/537.36",
+                viewport={"width": 1280, "height": 720}
+            )
             page = await context.new_page()
 
             price = None
             image_url = None
 
             try:
-                await page.goto(url, timeout=90000)
+                await page.goto(url, timeout=60000)
                 await page.wait_for_load_state('networkidle')
-                # give extra time for dynamic loading
-                await page.wait_for_timeout(6000)
+                await page.wait_for_timeout(4000)
 
                 # -------------------------
-                # LOWE’S
+                # LOWE'S
                 # -------------------------
                 if "lowes.com" in domain:
-                    ## update selector
                     try:
                         await page.wait_for_selector('div[data-testid="product-details-price"] span', timeout=15000)
                         el = await page.query_selector('div[data-testid="product-details-price"] span')
                         price = await el.inner_text() if el else None
-                        print("[DEBUG] Lowe’s primary price selector found:", price)
+                        print("[DEBUG] Lowe's price:", price)
                     except Exception as e:
-                        print("[DEBUG] Lowe’s primary price selector failed:", e)
+                        print("[DEBUG] Lowe's price selector failed:", e)
                         pass
-
-                    if not price:
-                        # fallback
-                        dollar_span = await page.query_selector('span.item-price-dollar')
-                        cent_div   = await page.query_selector('div.item-price-cent')
-                        dollar = await dollar_span.inner_text() if dollar_span else ''
-                        cent   = await cent_div.inner_text()   if cent_div else ''
-                        if dollar:
-                            price = f"${dollar}{cent}"
-                        print("[DEBUG] Lowe’s fallback price:", price)
 
                     img = await page.query_selector('meta[property="og:image"]')
                     image_url = await img.get_attribute('content') if img else None
-                    print("[DEBUG] Lowe’s image_url:", image_url)
+                    print("[DEBUG] Lowe's image URL:", image_url)
 
                 # -------------------------
                 # HOME DEPOT
                 # -------------------------
                 elif "homedepot.com" in domain:
                     try:
-                        await page.wait_for_selector('span.price__dollars', timeout=15000)
-                        el = await page.query_selector('span.price__dollars')
-                        cents_el = await page.query_selector('span.price__cents')
-                        dollars = await el.inner_text() if el else None
-                        cents   = await cents_el.inner_text() if cents_el else ''
-                        if dollars:
-                            price = f"${dollars}{cents}"
-                        print("[DEBUG] Home Depot primary selector price:", price)
+                        await page.wait_for_selector('span[data-automation-id="product-price"]', timeout=15000)
+                        el = await page.query_selector('span[data-automation-id="product-price"]')
+                        price = await el.inner_text() if el else None
+                        print("[DEBUG] Home Depot price:", price)
                     except Exception as e:
-                        print("[DEBUG] Home Depot primary selector failed:", e)
-                        pass
-
-                    if not price:
-                        el = await page.query_selector('meta[itemprop="price"]')
-                        price = await el.get_attribute('content') if el else None
-                        print("[DEBUG] Home Depot meta price fallback:", price)
+                        print("[DEBUG] Home Depot price selector failed:", e)
 
                     img = await page.query_selector('meta[property="og:image"]')
                     image_url = await img.get_attribute('content') if img else None
-                    print("[DEBUG] Home Depot image_url:", image_url)
+                    print("[DEBUG] Home Depot image URL:", image_url)
 
                 # -------------------------
                 # AMAZON
                 # -------------------------
                 elif "amazon.com" in domain:
-                    try:
-                        await page.wait_for_selector('span.a-price span.a-offscreen', timeout=15000)
-                        el = await page.query_selector('span.a-price span.a-offscreen')
-                        price = await el.inner_text() if el else None
-                        print("[DEBUG] Amazon primary selector price:", price)
-                    except Exception as e:
-                        print("[DEBUG] Amazon primary selector failed:", e)
-                        pass
-
-                    if not price:
-                        for selector in ['#priceblock_ourprice', '#priceblock_dealprice', '#priceblock_saleprice']:
+                    price_selectors = [
+                        'span#corePriceDisplay_desktop_feature_div span.a-price span.a-offscreen',
+                        'span.a-price span.a-offscreen',
+                        '#priceblock_ourprice',
+                        '#priceblock_dealprice',
+                        '#priceblock_saleprice'
+                    ]
+                    for selector in price_selectors:
+                        try:
+                            await page.wait_for_selector(selector, timeout=8000)
                             el = await page.query_selector(selector)
                             if el:
                                 price = await el.inner_text()
-                                print(f"[DEBUG] Amazon fallback {selector} price:", price)
+                                print(f"[DEBUG] Amazon price from {selector}:", price)
                                 break
+                        except Exception as e:
+                            print(f"[DEBUG] Amazon selector {selector} failed:", e)
+                            continue
 
-                    img = await page.query_selector('#landingImage')
-                    image_url = await img.get_attribute('src') if img else None
+                    img = await page.query_selector('img#landingImage')
+                    if img:
+                        image_url = await img.get_attribute('src')
+                    else:
+                        meta_img = await page.query_selector('meta[property="og:image"]')
+                        image_url = await meta_img.get_attribute('content') if meta_img else None
                     print("[DEBUG] Amazon image_url:", image_url)
 
                 # -------------------------
@@ -123,36 +112,33 @@ def scrape_product():
                         await page.wait_for_selector('span[itemprop="price"]', timeout=15000)
                         el = await page.query_selector('span[itemprop="price"]')
                         price = await el.inner_text() if el else None
-                        print("[DEBUG] Walmart primary selector price:", price)
+                        print("[DEBUG] Walmart primary price selector price:", price)
                     except Exception as e:
                         print("[DEBUG] Walmart primary selector failed:", e)
-                        pass
 
                     if not price:
-                        el = await page.query_selector('[data-automation-id="product-price"]')
-                        price = await el.inner_text() if el else None
-                        print("[DEBUG] Walmart fallback price:", price)
+                        el2 = await page.query_selector('span[data-automation-id="product-price"]')
+                        price = await el2.inner_text() if el2 else None
+                        print("[DEBUG] Walmart fallback price selector:", price)
 
                     img = await page.query_selector('meta[property="og:image"]')
                     image_url = await img.get_attribute('content') if img else None
                     print("[DEBUG] Walmart image_url:", image_url)
 
                 # -------------------------
-                # GENERAL fallback
+                # FALLBACK — OG IMAGE / META PRICE
                 # -------------------------
                 if not image_url:
                     og_img = await page.query_selector('meta[property="og:image"]')
                     image_url = await og_img.get_attribute('content') if og_img else None
-                    print("[DEBUG] General fallback image_url:", image_url)
 
                 if not price:
                     meta_price = await page.query_selector('meta[itemprop="price"]')
                     price = await meta_price.get_attribute('content') if meta_price else None
-                    print("[DEBUG] General fallback meta price:", price)
 
                 await browser.close()
                 return {
-                    'image_url': image_url if image_url else 'Not found',
+                    'image_url': image_url or 'Not found',
                     'price': price.strip() if price else 'Not found'
                 }
 
@@ -161,7 +147,7 @@ def scrape_product():
                 return {'error': f'Scraping failed: {str(e)}'}
 
     try:
-        result = asyncio.run(asyncio.wait_for(run_scraper(), timeout=120))
+        result = asyncio.run(asyncio.wait_for(run_scraper(), timeout=90))
         return jsonify(result)
     except asyncio.TimeoutError:
         return jsonify({'error': 'Scraping timed out'}), 504
@@ -175,9 +161,9 @@ def keep_alive():
         while True:
             try:
                 requests.get("https://your-app-url.onrender.com")
-                print("[INFO] Keep‑alive ping successful")
+                print("[INFO] Keep-alive ping successful")
             except Exception as e:
-                print(f"[WARNING] Keep‑alive ping failed: {e}")
+                print(f"[WARNING] Keep-alive ping failed: {e}")
             time.sleep(30)
 
     thread = threading.Thread(target=ping)
