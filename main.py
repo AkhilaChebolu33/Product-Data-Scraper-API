@@ -23,7 +23,18 @@ def scrape_product():
     async def run_scraper():
         domain = get_retailer_domain(url)
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True, args=['--disable-dev-shm-usage'])
+            ## browser = await p.chromium.launch(headless=True, args=['--disable-dev-shm-usage'])
+
+            browser = await p.chromium.launch(
+                headless=True, 
+                proxy={
+                    "server": "http://your-proxy-server:port",  # e.g., "http://proxy.example.com:8080"
+                    "username": "your-username",                # optional
+                    "password": "your-password"                 # optional
+                },
+                args=['--disable-dev-shm-usage']
+            )
+
             context = await browser.new_context(ignore_https_errors=True)
             page = await context.new_page()
 
