@@ -24,23 +24,15 @@ def scrape_product():
         domain = get_retailer_domain(url)
         async with async_playwright() as p:
             # Non-headless for debugging, switch to True when done
-            browser = await p.chromium.launch(headless=False, args=['--disable-dev-shm-usage'])
-            context = await browser.new_context(
-                ignore_https_errors=True,
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                           "(KHTML, like Gecko) Chrome/118.0.5993.118 Safari/537.36",
-                viewport={"width": 1280, "height": 720}
-            )
+            browser = await p.chromium.launch(headless=True, args=['--disable-dev-shm-usage'])
+            context = await browser.new_context(ignore_https_errors=True)
             page = await context.new_page()
 
             price = None
-            image_url = None
+            image_src = None
 
             try:
                 await page.goto(url, timeout=60000)
-                await page.wait_for_load_state('domcontentloaded')
-                await page.wait_for_timeout(5000)
-
                 print(f"[DEBUG] Navigated to: {page.url}")
 
                 # Wait for DOM content loaded + extra time for JS
@@ -69,7 +61,7 @@ def scrape_product():
                     # --- Output Results ---
                     print(f"Main Product Image URL: {image_src}\n\n\n")
 
-                    await browser.close()
+                    
 
                 # -------------------------
                 # HOME DEPOT
@@ -94,7 +86,7 @@ def scrape_product():
                     print(f"\n\n\nPrice: {price}")
                     print(f"Main Product Image URL: {image_src}\n\n\n")
 
-                    await browser.close()
+                    
 
                 # -------------------------
                 # AMAZON
@@ -122,7 +114,7 @@ def scrape_product():
                     # print(f"\n\n\nPrice: {price}")
                     print(f"Main Product Image URL: {image_src}\n\n\n")
 
-                    await browser.close()
+                    
 
                 # -------------------------
                 # WALMART
@@ -143,7 +135,7 @@ def scrape_product():
                     # --- Output Image
                     print(f"Main Product Image URL: {image_src}\n\n\n")
 
-                    await browser.close()
+                    
 
                 # ----------------------------
                 # Menards
@@ -167,7 +159,7 @@ def scrape_product():
                     # --- Output Image
                     print(f"Main Product Image URL: {image_src}\n\n\n")
 
-                    await browser.close()
+                    
 
 
                 # ----------------------------
@@ -189,7 +181,7 @@ def scrape_product():
                     # print(f"\n\n\nPrice: {price}")
                     print(f"Main Product Image URL: {image_src}\n\n\n")
 
-                    await browser.close()
+                    
 
                 # ----------------------------
                 # Target
@@ -206,7 +198,7 @@ def scrape_product():
                     image_src = await image_element.get_attribute('src')        
                     # --- Output Results ---
                     print(f"Main Product Image URL: {image_src}\n\n\n")
-                    await browser.close()
+                    
                     
                 # -------------------------
                 # Tractor Supply Co.
@@ -226,7 +218,7 @@ def scrape_product():
                     # --- Output Results ---
                     print(f"Main Product Image URL: {image_src}\n\n\n")
 
-                    await browser.close()
+                   
                 
                 # --------------------------
                 # Canadiantire
@@ -242,23 +234,23 @@ def scrape_product():
                     await page.wait_for_selector('img[src*="canadiantire.ca"]', timeout=60000, state="attached")
                     image_element = await page.query_selector('img[src*="canadiantire.ca"]')
                     image_src = await image_element.get_attribute('src')
+                    
 
                     # --- Output Results ---
                     print(f"Main Product Image URL: {image_src}\n\n\n")
 
-                    await browser.close()
+                   
 
-
-
+                
 
 
 
                 # -------------------------
                 # FALLBACK — OG IMAGE / META PRICE
                 # -------------------------
-                if not image_url:
+                if not image_src:
                     og_img = await page.query_selector('meta[property="og:image"]')
-                    image_url = await og_img.get_attribute('content') if og_img else None
+                    image_src = await og_img.get_attribute('content') if og_img else None
 
                 if not price:
                     meta_price = await page.query_selector('meta[itemprop="price"]')
@@ -266,7 +258,7 @@ def scrape_product():
 
                 await browser.close()
                 return {
-                    'image_url': image_url or 'Not found',
+                    'image_src': image_src or 'Not found',
                     'price': price.strip() if price else 'Not found'
                 }
 
@@ -274,9 +266,16 @@ def scrape_product():
                 await browser.close()
                 print(f"[ERROR] Scraping failed: {str(e)}")
                 return {'error': f'Scraping failed: {str(e)}'}
+            
+            finally:
+                await browser.close()
 
     try:
-        result = asyncio.run(asyncio.wait_for(run_scraper(), timeout=120))
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(asyncio.wait_for(run_scraper(), timeout=120))
+
         return jsonify(result)
     except asyncio.TimeoutError:
         print("[ERROR] Scraping timed out.")
@@ -290,7 +289,8 @@ def keep_alive():
     def ping():
         while True:
             try:
-                requests.get("https://your-app-url.onrender.com")
+                # requests.get("https://your-app-url.onrender.com")
+                requests.get("https://product-data-scraper-endpoint.onrender.com")
                 print("[INFO] Keep-alive ping successful")
             except Exception as e:
                 print(f"[WARNING] Keep-alive ping failed: {e}")
