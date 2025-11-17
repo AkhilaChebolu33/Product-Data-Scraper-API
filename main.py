@@ -126,14 +126,14 @@ def scrape_product():
                 # -------------------------
                 elif "walmart.com" in domain:
                     # --- Extract Price ---
-                    await page.wait_for_selector('[itemprop="price"]', timeout=1200000, state="attached")
+                    await page.wait_for_selector('[itemprop="price"]', timeout=60000, state="attached")
                     price_dollars = await page.text_content('[itemprop="price"]')
     
                     price = f"{price_dollars.strip()}"
                     print(f"\n\n\nPrice: {price}")
 
                     # --- Extract Main Product Image URL ---
-                    await page.wait_for_selector('img[src*="i5.walmartimages.com/seo/"]', timeout=1200000, state="attached")
+                    await page.wait_for_selector('img[src*="i5.walmartimages.com/seo/"]', timeout=60000, state="attached")
                     image_element = await page.query_selector('img[src*="i5.walmartimages.com/seo/"]')
                     image_src = await image_element.get_attribute('src')
 
@@ -146,28 +146,27 @@ def scrape_product():
                 # Menards
                 # ----------------------------
                 elif "menards.com" in domain:
-                   # --- Extract Price ---
-                    await page.wait_for_selector('[data-testid="product-price"]', timeout=60000,    state="attached")
-                    price_dollars = await page.text_content('[data-testid="product-price"]')
-                    price = price_dollars.strip() if price_dollars else "Price not found"
+                    # --- Extract Price ---
+                    await page.wait_for_selector('[class="price-big-val float-left"]', timeout=60000, state="attached")
+                    await page.wait_for_selector('[class="cents-val float-left"]', timeout=60000, state="attached")
+                    # await page.wait_for_selector('[class="a-price-decimal"]', timeout=60000, state="attached")
+                    # await page.wait_for_selector('[class="a-price-fraction"]', timeout=60000, state="attached")
+
+                    ## price_symbol = await page.text_content('[class="a-price-symbol"]')
+                    price_dollars = await page.text_content('[class="price-big-val float-left"]')
+                    ## price_decimal = await page.text_content('[class="a-price-decimal"]')
+                    price_cents = await page.text_content('[class="cents-val float-left"]')
+                    price = f"${price_dollars.strip()}.{price_cents.strip()}"
                     print(f"\n\n\nPrice: {price}")
+
                     # --- Extract Main Product Image URL ---
-                    # await page.wait_for_selector('img[src*="menards.com/main/"]', timeout=60000, state="attached")
-                    # image_element = await page.query_selector('img[src*="menards.com/main/"]')
-                    #   
-                    #   
-                    #   
-                    #   
-                    # image_src = await image_element.get_attribute('src')
-                    #  --- Output Results ---
-                    #   
-                    #   
-                    #  print(f"Main Product Image URL: {image_src}\n\n\n")
-                    await page.wait_for_selector('img[class="primary-image"]', timeout=60000, state="attached")
-                    image_element = await page.query_selector('img[class="primary-image"]')
+                    await page.wait_for_selector('img[src*="cdn.menardc.com/main/items/media/"]', timeout=60000, state="attached")
+                    image_element = await page.query_selector('img[src*="cdn.menardc.com/main/items/media/"]')
                     image_src = await image_element.get_attribute('src')
+
                     # --- Output Results ---
-                    print(f"Main Product Image URL: {image_src}\n\n\n")      
+                    # print(f"\n\n\nPrice: {price}")
+                    print(f"Main Product Image URL: {image_src}\n\n\n")
 
                     
 
