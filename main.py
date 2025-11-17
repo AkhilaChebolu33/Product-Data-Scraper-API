@@ -5,6 +5,7 @@ import os
 import threading
 import time
 import requests
+import traceback
 from urllib.parse import urlparse
 
 app = Flask(__name__)
@@ -37,7 +38,7 @@ def scrape_product():
 
                 # Wait for DOM content loaded + extra time for JS
                 await page.wait_for_load_state('domcontentloaded')
-                await page.wait_for_timeout(7000)
+                await page.wait_for_timeout(3000)
 
                 content = await page.content()
                 print(f"[DEBUG] Page content length: {len(content)}")
@@ -266,6 +267,7 @@ def scrape_product():
                 await browser.close()
                 print(f"[ERROR] Scraping failed: {str(e)}")
                 return {'error': f'Scraping failed: {str(e)}'}
+                
             
             finally:
                 await browser.close()
@@ -279,6 +281,7 @@ def scrape_product():
         return jsonify(result)
     except asyncio.TimeoutError:
         print("[ERROR] Scraping timed out.")
+        print(traceback.format_exc())
         return jsonify({'error': 'Scraping timed out'}), 504
 
 @app.route('/')
