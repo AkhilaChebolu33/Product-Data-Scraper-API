@@ -1,5 +1,5 @@
 # Use the official Playwright image with Python and all dependencies
-FROM mcr.microsoft.com/playwright/python:v1.55.0-jammy
+FROM mcr.microsoft.com/playwright/python:v1.56.0-jammy
 
 # Set working directory
 WORKDIR /app
@@ -9,6 +9,10 @@ COPY . .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Install Chromium
+RUN playwright install chromium
+
 
 # Expose the port your app runs on
 EXPOSE 10000
