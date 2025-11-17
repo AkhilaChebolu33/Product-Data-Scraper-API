@@ -38,7 +38,7 @@ def scrape_product():
 
                 # Wait for DOM content loaded + extra time for JS
                 await page.wait_for_load_state('domcontentloaded')
-                await page.wait_for_timeout(3000)
+                await page.wait_for_timeout(1000)
 
                 content = await page.content()
                 print(f"[DEBUG] Page content length: {len(content)}")
