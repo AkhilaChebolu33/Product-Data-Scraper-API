@@ -10,6 +10,9 @@ COPY . .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install Playwright
+RUN pip install playwright==1.56.0
+
 # Install Chromium
 RUN playwright install chromium
 
