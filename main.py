@@ -147,8 +147,8 @@ def scrape_product():
                 # ----------------------------
                 elif "menards.com" in domain:
                     # --- Extract Price ---
-                    await page.wait_for_selector('[class="price-big-val float-left"]', timeout=60000, state="attached")
-                    await page.wait_for_selector('[class="cents-val float-left"]', timeout=60000, state="attached")
+                    await page.wait_for_selector('[class="price-big-val float-left"]', timeout=15000, state="attached")
+                    await page.wait_for_selector('[class="cents-val float-left"]', timeout=15000, state="attached")
                     # await page.wait_for_selector('[class="a-price-decimal"]', timeout=60000, state="attached")
                     # await page.wait_for_selector('[class="a-price-fraction"]', timeout=60000, state="attached")
 
@@ -160,7 +160,7 @@ def scrape_product():
                     print(f"\n\n\nPrice: {price}")
 
                     # --- Extract Main Product Image URL ---
-                    await page.wait_for_selector('img[src*="cdn.menardc.com/main/items/media/"]', timeout=60000, state="attached")
+                    await page.wait_for_selector('img[src*="cdn.menardc.com/main/items/media/"]', timeout=15000, state="attached")
                     image_element = await page.query_selector('img[src*="cdn.menardc.com/main/items/media/"]')
                     image_src = await image_element.get_attribute('src')
 
