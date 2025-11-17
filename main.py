@@ -146,23 +146,28 @@ def scrape_product():
                 # Menards
                 # ----------------------------
                 elif "menards.com" in domain:
-                    # --- Extract Price ---
-                    await page.wait_for_selector('[class="price-big-val float-left"]', timeout=60000, state="attached")
-                    await page.wait_for_selector('[class="cents-val float-left"]', timeout=60000, state="attached")
-
-                    price_dollars = await page.text_content('[class="price-big-val float-left"]')
-                    
-                    price_cents = await page.text_content('[class="cents-val float-left"]')
-                    price = f"${price_dollars.strip()}.{price_cents.strip()}"
+                   # --- Extract Price ---
+                    await page.wait_for_selector('[data-testid="product-price"]', timeout=60000,    state="attached")
+                    price_dollars = await page.text_content('[data-testid="product-price"]')
+                    price = price_dollars.strip() if price_dollars else "Price not found"
                     print(f"\n\n\nPrice: {price}")
-
                     # --- Extract Main Product Image URL ---
-                    await page.wait_for_selector('img[src*="cdn.menardc.com/main/items/media/"]', timeout=1200000, state="attached")
-                    image_element = await page.query_selector('img[src*="cdn.menardc.com/main/items/media/"]')
+                    # await page.wait_for_selector('img[src*="menards.com/main/"]', timeout=60000, state="attached")
+                    # image_element = await page.query_selector('img[src*="menards.com/main/"]')
+                    #   
+                    #   
+                    #   
+                    #   
+                    # image_src = await image_element.get_attribute('src')
+                    #  --- Output Results ---
+                    #   
+                    #   
+                    #  print(f"Main Product Image URL: {image_src}\n\n\n")
+                    await page.wait_for_selector('img[class="primary-image"]', timeout=60000, state="attached")
+                    image_element = await page.query_selector('img[class="primary-image"]')
                     image_src = await image_element.get_attribute('src')
-
-                    # --- Output Image
-                    print(f"Main Product Image URL: {image_src}\n\n\n")
+                    # --- Output Results ---
+                    print(f"Main Product Image URL: {image_src}\n\n\n")      
 
                     
 
