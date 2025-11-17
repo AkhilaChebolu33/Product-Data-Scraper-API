@@ -17,6 +17,6 @@ EXPOSE 10000
 ENV PORT=10000
 
 # Start the Flask app using Gunicorn with extended timeout
-CMD ["gunicorn", "--workers=1", "--timeout=300", "--bind", "0.0.0.0:${PORT}", "main:app"]
+CMD ["gunicorn", "--workers=1", "--timeout=300", "--bind", "0.0.0.0:$PORT", "main:app"]
 
 
