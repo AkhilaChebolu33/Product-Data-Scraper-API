@@ -149,12 +149,9 @@ def scrape_product():
                     # --- Extract Price ---
                     await page.wait_for_selector('[class="price-big-val float-left"]', timeout=15000, state="attached")
                     await page.wait_for_selector('[class="cents-val float-left"]', timeout=15000, state="attached")
-                    # await page.wait_for_selector('[class="a-price-decimal"]', timeout=60000, state="attached")
-                    # await page.wait_for_selector('[class="a-price-fraction"]', timeout=60000, state="attached")
 
-                    ## price_symbol = await page.text_content('[class="a-price-symbol"]')
+                    
                     price_dollars = await page.text_content('[class="price-big-val float-left"]')
-                    ## price_decimal = await page.text_content('[class="a-price-decimal"]')
                     price_cents = await page.text_content('[class="cents-val float-left"]')
                     price = f"${price_dollars.strip()}.{price_cents.strip()}"
                     print(f"\n\n\nPrice: {price}")
@@ -165,7 +162,6 @@ def scrape_product():
                     image_src = await image_element.get_attribute('src')
 
                     # --- Output Results ---
-                    # print(f"\n\n\nPrice: {price}")
                     print(f"Main Product Image URL: {image_src}\n\n\n")
 
                     
