@@ -109,11 +109,10 @@ def scrape_product():
                     # --- Extract Main Product Image URL ---
                     # await page.wait_for_selector('img[src*="m.media-amazon.com/images/I"]', timeout=60000, state="attached")
                     # image_element = await page.query_selector('img[src*="m.media-amazon.com/images/I"]')
+                    
 
                     await page.wait_for_selector('img#landingImage', timeout=60000, state="attached")
                     image_element = await page.query_selector('img#landingImage')
-
-
                     image_src = await image_element.get_attribute('src')
 
                     # --- Output Results ---
