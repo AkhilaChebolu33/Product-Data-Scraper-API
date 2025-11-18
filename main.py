@@ -23,263 +23,259 @@ def scrape_product():
 
     async def run_scraper():
         domain = get_retailer_domain(url)
-        async def run_all_browsers():
-            async with async_playwright() as p:
-                for browser_type in [p.chromium, p.firefox, p.webkit]:
+        async with async_playwright() as p:
+            # Non-headless for debugging, switch to True when done
+            browser = await p.webkit.launch(headless=True, args=['--disable-dev-shm-usage'])
+            context = await browser.new_context(ignore_https_errors=True)
+            page = await context.new_page()
 
-                    # Non-headless for debugging, switch to True when done
-                    browser = await browser_type.launch(headless=True, args=['--disable-dev-shm-usage'])
-                    context = await browser.new_context(ignore_https_errors=True)
-                    page = await context.new_page()
+            price = None
+            image_src = None
 
-                    price = None
-                    image_src = None
+            try:
+                await page.goto(url, timeout=60000)
+                print(f"[DEBUG] Navigated to: {page.url}")
 
-                    try:
-                        await page.goto(url, timeout=60000)
-                        print(f"[DEBUG] Navigated to: {page.url}")
+                # Wait for DOM content loaded + extra time for JS
+                await page.wait_for_load_state('domcontentloaded')
+                await page.wait_for_timeout(7000)
 
-                        # Wait for DOM content loaded + extra time for JS
-                        await page.wait_for_load_state('domcontentloaded')
-                        await page.wait_for_timeout(7000)
+                content = await page.content()
+                print(f"[DEBUG] Page content length: {len(content)}")
+                print(f"[DEBUG] Page snippet:\n{content[:1000]}")  # first 1000 chars
 
-                        content = await page.content()
-                        print(f"[DEBUG] Page content length: {len(content)}")
-                        print(f"[DEBUG] Page snippet:\n{content[:1000]}")  # first 1000 chars
+                # -------------------------
+                # LOWE'S
+                # -------------------------
+                if "lowes.com" in domain:
+                    # --- Extract Price ---
+                    await page.wait_for_selector('[data-automation-id="product-price"]', timeout=60000, state="attached")
+                    price_dollars = await page.text_content('[data-automation-id="product-price"]')
+                    price = price_dollars.strip() if price_dollars else "Price not found"
+                    print(f"\n\n\nPrice: {price}")
 
-                        # -------------------------
-                        # LOWE'S
-                        # -------------------------
-                        if "lowes.com" in domain:
-                            # --- Extract Price ---
-                            await page.wait_for_selector('[data-automation-id="product-price"]', timeout=60000, state="attached")
-                            price_dollars = await page.text_content('[data-automation-id="product-price"]')
-                            price = price_dollars.strip() if price_dollars else "Price not found"
-                            print(f"\n\n\nPrice: {price}")
+                    # --- Extract Main Product Image URL ---
+                    await page.wait_for_selector('img[src*="lowes.com/product/"]', timeout=60000, state="attached")
+                    image_element = await page.query_selector('img[src*="lowes.com/product/"]')
+                    image_src = await image_element.get_attribute('src')
 
-                            # --- Extract Main Product Image URL ---
-                            await page.wait_for_selector('img[src*="lowes.com/product/"]', timeout=60000, state="attached")
-                            image_element = await page.query_selector('img[src*="lowes.com/product/"]')
-                            image_src = await image_element.get_attribute('src')
+                    # --- Output Results ---
+                    print(f"Main Product Image URL: {image_src}\n\n\n")
 
-                            # --- Output Results ---
-                            print(f"Main Product Image URL: {image_src}\n\n\n")
-
-                            
-
-                        # -------------------------
-                        # HOME DEPOT
-                        # -------------------------
-                        elif "homedepot.com" in domain:
-                            # --- Extract Price ---
-                            await page.wait_for_selector('[class="sui-font-display sui-leading-none sui-text-3xl"]', timeout=60000, state="attached")
-                            await page.wait_for_selector('[class="sui-font-display sui-leading-none sui-px-[2px] sui-text-9xl sui--translate-y-[0.5rem]"]', timeout=60000, state="attached")
-
-                            price_parts = await page.query_selector_all('[class="sui-font-display sui-leading-none sui-text-3xl"]')
-                            dollar_sign = await price_parts[0].text_content()
-                            cents = await price_parts[1].text_content()
-                            integer_part = await page.text_content('[class="sui-font-display sui-leading-none sui-px-[2px] sui-text-9xl sui--translate-y-[0.5rem]"]')
-                            price = f"{dollar_sign}{integer_part}.{cents}"
-
-                            # --- Extract Main Product Image URL ---
-                            await page.wait_for_selector('img[src*="images.thdstatic.com"]', timeout=60000, state="attached")
-                            image_element = await page.query_selector('img[src*="images.thdstatic.com"]')
-                            image_src = await image_element.get_attribute('src')
-
-                            # --- Output Results ---
-                            print(f"\n\n\nPrice: {price}")
-                            print(f"Main Product Image URL: {image_src}\n\n\n")
-
-                            
-
-                        # -------------------------
-                        # AMAZON
-                        # -------------------------
-                        elif "amazon.com" in domain:
-                            # --- Extract Price ---
-                            await page.wait_for_selector('[class="a-price-symbol"]', timeout=60000, state="attached")
-                            await page.wait_for_selector('[class="a-price-whole"]', timeout=60000, state="attached")
-                            await page.wait_for_selector('[class="a-price-decimal"]', timeout=60000, state="attached")
-                            await page.wait_for_selector('[class="a-price-fraction"]', timeout=60000, state="attached")
-
-                            ## price_symbol = await page.text_content('[class="a-price-symbol"]')
-                            price_dollars = await page.text_content('[class="a-price-whole"]')
-                            ## price_decimal = await page.text_content('[class="a-price-decimal"]')
-                            price_cents = await page.text_content('[class="a-price-fraction"]')
-                            price = f"${price_dollars.strip()}{price_cents.strip()}"
-                            print(f"\n\n\nPrice: {price}")
-
-                            # --- Extract Main Product Image URL ---
-                            # await page.wait_for_selector('img[src*="m.media-amazon.com/images/I"]', timeout=60000, state="attached")
-                            # image_element = await page.query_selector('img[src*="m.media-amazon.com/images/I"]')
-                            
-
-                            await page.wait_for_selector('img#landingImage', timeout=60000, state="attached")
-                            image_element = await page.query_selector('img#landingImage')
-                            image_src = await image_element.get_attribute('src')
-
-                            # --- Output Results ---
-                            # print(f"\n\n\nPrice: {price}")
-                            print(f"Main Product Image URL: {image_src}\n\n\n")
-
-                            
-
-                        # -------------------------
-                        # WALMART
-                        # -------------------------
-                        elif "walmart.com" in domain:
-                            # --- Extract Price ---
-                            await page.wait_for_selector('[itemprop="price"]', timeout=60000, state="attached")
-                            price_dollars = await page.text_content('[itemprop="price"]')
-            
-                            price = f"{price_dollars.strip()}"
-                            print(f"\n\n\nPrice: {price}")
-
-                            # --- Extract Main Product Image URL ---
-                            await page.wait_for_selector('img[src*="i5.walmartimages.com/seo/"]', timeout=60000, state="attached")
-                            image_element = await page.query_selector('img[src*="i5.walmartimages.com/seo/"]')
-                            image_src = await image_element.get_attribute('src')
-
-                            # --- Output Image
-                            print(f"Main Product Image URL: {image_src}\n\n\n")
-
-                            
-
-                        # ----------------------------
-                        # Menards
-                        # ----------------------------
-                        elif "menards.com" in domain:
-                            # --- Extract Price ---
-                            await page.wait_for_selector('[class="price-big-val float-left"]', timeout=15000, state="attached")
-                            await page.wait_for_selector('[class="cents-val float-left"]', timeout=15000, state="attached")
-
-                            
-                            price_dollars = await page.text_content('[class="price-big-val float-left"]')
-                            price_cents = await page.text_content('[class="cents-val float-left"]')
-                            price = f"${price_dollars.strip()}.{price_cents.strip()}"
-                            print(f"\n\n\nPrice: {price}")
-
-                            # --- Extract Main Product Image URL ---
-                            await page.wait_for_selector('img[src*="cdn.menardc.com/main/items/media/"]', timeout=15000, state="attached")
-                            image_element = await page.query_selector('img[src*="cdn.menardc.com/main/items/media/"]')
-                            image_src = await image_element.get_attribute('src')
-
-                            # --- Output Results ---
-                            print(f"Main Product Image URL: {image_src}\n\n\n")
-
-                            
-
-
-                        # ----------------------------
-                        # Harbor Freight
-                        # ----------------------------
-                        elif "harborfreight.com" in domain:
-                            # Extract price using aria-label
-                            price_element = await page.query_selector('span[aria-label]')
-                            price = await price_element.get_attribute('aria-label') if price_element else "Price not found"
-
-                            print(f"\n\n\nPrice: {price}")
-
-                            # --- Extract Main Product Image URL ---
-                            await page.wait_for_selector('img[src*="www.harborfreight.com/media/catalog/product/"]', timeout=60000, state="attached")
-                            image_element = await page.query_selector('img[src*="www.harborfreight.com/media/catalog/product/"]')
-                            image_src = await image_element.get_attribute('src')
-
-                            # --- Output Results ---
-                            # print(f"\n\n\nPrice: {price}")
-                            print(f"Main Product Image URL: {image_src}\n\n\n")
-
-                            
-
-                        # ----------------------------
-                        # Target
-                        # ----------------------------
-                        elif "target.com" in domain:
-                            await page.wait_for_selector('[class="sc-44e8b7a0-1 LjEZN"]', timeout=30000)
-                            price_dollars = await page.text_content('[class="sc-44e8b7a0-1 LjEZN"]')
-                            price = price_dollars.strip() if price_dollars else "Price not found"
-                            print(f"\n\n\nPrice: {price}")
-
-                            # --- Extract Main Product Image URL ---
-                            await page.wait_for_selector('img[src*="target.scene7.com/is/image/Target/"]', timeout=30000)
-                            image_element = await page.query_selector('img[src*="target.scene7.com/is/image/Target/"]')
-                            image_src = await image_element.get_attribute('src')        
-                            # --- Output Results ---
-                            print(f"Main Product Image URL: {image_src}\n\n\n")
-                            
-                            
-                        # -------------------------
-                        # Tractor Supply Co.
-                        # -------------------------
-                        elif "tractorsupply.com" in domain:
-                            # --- Extract Price ---
-                            await page.wait_for_selector('[data-testid="product-price"]', timeout=60000, state="attached")
-                            price_dollars = await page.text_content('[data-testid="product-price"]')
-                            price = price_dollars.strip() if price_dollars else "Price not found"
-                            print(f"\n\n\nPrice: {price}")
-
-                            # --- Extract Main Product Image URL ---
-                            await page.wait_for_selector('img[src*="tractorsupply.com/is/image/TractorSupply/"]', timeout=60000, state="attached")
-                            image_element = await page.query_selector('img[src*="tractorsupply.com/is/image/TractorSupply/"]')
-                            image_src = await image_element.get_attribute('src')
-
-                            # --- Output Results ---
-                            print(f"Main Product Image URL: {image_src}\n\n\n")
-
-                        
-                        
-                        # --------------------------
-                        # Canadiantire
-                        # --------------------------
-                        elif "canadiantire.ca" in domain:
-                            # --- Extract Price ---
-                            await page.wait_for_selector('[class="price__value"]', timeout=60000, state="attached")
-                            price_dollars = await page.text_content('[class="price__value"]')
-                            price = price_dollars.strip() if price_dollars else "Price not found"
-                            print(f"\n\n\nPrice: {price}")
-
-                            # --- Extract Main Product Image URL ---
-                            await page.wait_for_selector('img[src*="canadiantire.ca"]', timeout=60000, state="attached")
-                            image_element = await page.query_selector('img[src*="canadiantire.ca"]')
-                            image_src = await image_element.get_attribute('src')
-                            
-
-                            # --- Output Results ---
-                            print(f"Main Product Image URL: {image_src}\n\n\n")
-
-                        
-
-                        
-
-
-
-                        # -------------------------
-                        # FALLBACK — OG IMAGE / META PRICE
-                        # -------------------------
-                        if not image_src:
-                            og_img = await page.query_selector('meta[property="og:image"]')
-                            image_src = await og_img.get_attribute('content') if og_img else None
-
-                        if not price:
-                            meta_price = await page.query_selector('meta[itemprop="price"]')
-                            price = await meta_price.get_attribute('content') if meta_price else None
-
-                        await browser.close()
-                        return {
-                            'image_src': image_src or 'Not found',
-                            'price': price.strip() if price else 'Not found'
-                        }
-
-                    except Exception as e:
-                        await browser.close()
-                        print(f"[ERROR] Scraping failed: {str(e)}")
-                        return {'error': f'Scraping failed: {str(e)}'}
                     
+
+                # -------------------------
+                # HOME DEPOT
+                # -------------------------
+                elif "homedepot.com" in domain:
+                    # --- Extract Price ---
+                    await page.wait_for_selector('[class="sui-font-display sui-leading-none sui-text-3xl"]', timeout=60000, state="attached")
+                    await page.wait_for_selector('[class="sui-font-display sui-leading-none sui-px-[2px] sui-text-9xl sui--translate-y-[0.5rem]"]', timeout=60000, state="attached")
+
+                    price_parts = await page.query_selector_all('[class="sui-font-display sui-leading-none sui-text-3xl"]')
+                    dollar_sign = await price_parts[0].text_content()
+                    cents = await price_parts[1].text_content()
+                    integer_part = await page.text_content('[class="sui-font-display sui-leading-none sui-px-[2px] sui-text-9xl sui--translate-y-[0.5rem]"]')
+                    price = f"{dollar_sign}{integer_part}.{cents}"
+
+                    # --- Extract Main Product Image URL ---
+                    await page.wait_for_selector('img[src*="images.thdstatic.com"]', timeout=60000, state="attached")
+                    image_element = await page.query_selector('img[src*="images.thdstatic.com"]')
+                    image_src = await image_element.get_attribute('src')
+
+                    # --- Output Results ---
+                    print(f"\n\n\nPrice: {price}")
+                    print(f"Main Product Image URL: {image_src}\n\n\n")
+
+                    
+
+                # -------------------------
+                # AMAZON
+                # -------------------------
+                elif "amazon.com" in domain:
+                    # --- Extract Price ---
+                    await page.wait_for_selector('[class="a-price-symbol"]', timeout=60000, state="attached")
+                    await page.wait_for_selector('[class="a-price-whole"]', timeout=60000, state="attached")
+                    await page.wait_for_selector('[class="a-price-decimal"]', timeout=60000, state="attached")
+                    await page.wait_for_selector('[class="a-price-fraction"]', timeout=60000, state="attached")
+
+                    ## price_symbol = await page.text_content('[class="a-price-symbol"]')
+                    price_dollars = await page.text_content('[class="a-price-whole"]')
+                    ## price_decimal = await page.text_content('[class="a-price-decimal"]')
+                    price_cents = await page.text_content('[class="a-price-fraction"]')
+                    price = f"${price_dollars.strip()}{price_cents.strip()}"
+                    print(f"\n\n\nPrice: {price}")
+
+                    # --- Extract Main Product Image URL ---
+                    # await page.wait_for_selector('img[src*="m.media-amazon.com/images/I"]', timeout=60000, state="attached")
+                    # image_element = await page.query_selector('img[src*="m.media-amazon.com/images/I"]')
+                    
+
+                    await page.wait_for_selector('img#landingImage', timeout=60000, state="attached")
+                    image_element = await page.query_selector('img#landingImage')
+                    image_src = await image_element.get_attribute('src')
+
+                    # --- Output Results ---
+                    # print(f"\n\n\nPrice: {price}")
+                    print(f"Main Product Image URL: {image_src}\n\n\n")
+
+                    
+
+                # -------------------------
+                # WALMART
+                # -------------------------
+                elif "walmart.com" in domain:
+                    # --- Extract Price ---
+                    await page.wait_for_selector('[itemprop="price"]', timeout=60000, state="attached")
+                    price_dollars = await page.text_content('[itemprop="price"]')
+    
+                    price = f"{price_dollars.strip()}"
+                    print(f"\n\n\nPrice: {price}")
+
+                    # --- Extract Main Product Image URL ---
+                    await page.wait_for_selector('img[src*="i5.walmartimages.com/seo/"]', timeout=60000, state="attached")
+                    image_element = await page.query_selector('img[src*="i5.walmartimages.com/seo/"]')
+                    image_src = await image_element.get_attribute('src')
+
+                    # --- Output Image
+                    print(f"Main Product Image URL: {image_src}\n\n\n")
+
+                    
+
+                # ----------------------------
+                # Menards
+                # ----------------------------
+                elif "menards.com" in domain:
+                    # --- Extract Price ---
+                    await page.wait_for_selector('[class="price-big-val float-left"]', timeout=15000, state="attached")
+                    await page.wait_for_selector('[class="cents-val float-left"]', timeout=15000, state="attached")
+
+                    
+                    price_dollars = await page.text_content('[class="price-big-val float-left"]')
+                    price_cents = await page.text_content('[class="cents-val float-left"]')
+                    price = f"${price_dollars.strip()}.{price_cents.strip()}"
+                    print(f"\n\n\nPrice: {price}")
+
+                    # --- Extract Main Product Image URL ---
+                    await page.wait_for_selector('img[src*="cdn.menardc.com/main/items/media/"]', timeout=15000, state="attached")
+                    image_element = await page.query_selector('img[src*="cdn.menardc.com/main/items/media/"]')
+                    image_src = await image_element.get_attribute('src')
+
+                    # --- Output Results ---
+                    print(f"Main Product Image URL: {image_src}\n\n\n")
+
+                    
+
+
+                # ----------------------------
+                # Harbor Freight
+                # ----------------------------
+                elif "harborfreight.com" in domain:
+                    # Extract price using aria-label
+                    price_element = await page.query_selector('span[aria-label]')
+                    price = await price_element.get_attribute('aria-label') if price_element else "Price not found"
+
+                    print(f"\n\n\nPrice: {price}")
+
+                    # --- Extract Main Product Image URL ---
+                    await page.wait_for_selector('img[src*="www.harborfreight.com/media/catalog/product/"]', timeout=60000, state="attached")
+                    image_element = await page.query_selector('img[src*="www.harborfreight.com/media/catalog/product/"]')
+                    image_src = await image_element.get_attribute('src')
+
+                    # --- Output Results ---
+                    # print(f"\n\n\nPrice: {price}")
+                    print(f"Main Product Image URL: {image_src}\n\n\n")
+
+                    
+
+                # ----------------------------
+                # Target
+                # ----------------------------
+                elif "target.com" in domain:
+                    await page.wait_for_selector('[class="sc-44e8b7a0-1 LjEZN"]', timeout=30000)
+                    price_dollars = await page.text_content('[class="sc-44e8b7a0-1 LjEZN"]')
+                    price = price_dollars.strip() if price_dollars else "Price not found"
+                    print(f"\n\n\nPrice: {price}")
+
+                    # --- Extract Main Product Image URL ---
+                    await page.wait_for_selector('img[src*="target.scene7.com/is/image/Target/"]', timeout=30000)
+                    image_element = await page.query_selector('img[src*="target.scene7.com/is/image/Target/"]')
+                    image_src = await image_element.get_attribute('src')        
+                    # --- Output Results ---
+                    print(f"Main Product Image URL: {image_src}\n\n\n")
+                    
+                    
+                # -------------------------
+                # Tractor Supply Co.
+                # -------------------------
+                elif "tractorsupply.com" in domain:
+                    # --- Extract Price ---
+                    await page.wait_for_selector('[data-testid="product-price"]', timeout=60000, state="attached")
+                    price_dollars = await page.text_content('[data-testid="product-price"]')
+                    price = price_dollars.strip() if price_dollars else "Price not found"
+                    print(f"\n\n\nPrice: {price}")
+
+                    # --- Extract Main Product Image URL ---
+                    await page.wait_for_selector('img[src*="tractorsupply.com/is/image/TractorSupply/"]', timeout=60000, state="attached")
+                    image_element = await page.query_selector('img[src*="tractorsupply.com/is/image/TractorSupply/"]')
+                    image_src = await image_element.get_attribute('src')
+
+                    # --- Output Results ---
+                    print(f"Main Product Image URL: {image_src}\n\n\n")
+
+                   
                 
-                    finally:
-                        await browser.close()
-        asyncio.run(run_all_browsers)
-        
+                # --------------------------
+                # Canadiantire
+                # --------------------------
+                elif "canadiantire.ca" in domain:
+                    # --- Extract Price ---
+                    await page.wait_for_selector('[class="price__value"]', timeout=60000, state="attached")
+                    price_dollars = await page.text_content('[class="price__value"]')
+                    price = price_dollars.strip() if price_dollars else "Price not found"
+                    print(f"\n\n\nPrice: {price}")
+
+                    # --- Extract Main Product Image URL ---
+                    await page.wait_for_selector('img[src*="canadiantire.ca"]', timeout=60000, state="attached")
+                    image_element = await page.query_selector('img[src*="canadiantire.ca"]')
+                    image_src = await image_element.get_attribute('src')
+                    
+
+                    # --- Output Results ---
+                    print(f"Main Product Image URL: {image_src}\n\n\n")
+
+                   
+
+                
+
+
+
+                # -------------------------
+                # FALLBACK — OG IMAGE / META PRICE
+                # -------------------------
+                if not image_src:
+                    og_img = await page.query_selector('meta[property="og:image"]')
+                    image_src = await og_img.get_attribute('content') if og_img else None
+
+                if not price:
+                    meta_price = await page.query_selector('meta[itemprop="price"]')
+                    price = await meta_price.get_attribute('content') if meta_price else None
+
+                await browser.close()
+                return {
+                    'image_src': image_src or 'Not found',
+                    'price': price.strip() if price else 'Not found'
+                }
+
+            except Exception as e:
+                await browser.close()
+                print(f"[ERROR] Scraping failed: {str(e)}")
+                return {'error': f'Scraping failed: {str(e)}'}
+                
+            
+            finally:
+                await browser.close()
+
     try:
         
         loop = asyncio.new_event_loop()
