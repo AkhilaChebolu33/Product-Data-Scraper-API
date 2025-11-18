@@ -27,9 +27,9 @@ def scrape_product():
         async with async_playwright() as p:
             # Choose browser dynamically
             if browser_type == 'webkit':
-                browser = await p.webkit.launch(headless=True)
+                browser = await p.webkit.launch(headless=True, args=['--disable-dev-shm-usage'])
             elif browser_type == 'firefox':
-                browser = await p.firefox.launch(headless=True)
+                browser = await p.firefox.launch(headless=True, args=['--disable-dev-shm-usage'])
             else:
                 browser = await p.chromium.launch(headless=True, args=['--disable-dev-shm-usage'])
 
