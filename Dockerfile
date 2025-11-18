@@ -13,8 +13,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Install Playwright
 RUN pip install playwright==1.56.0
 
+# Install all browsers from playwright (chromium, webkit, firefox)
+RUN playwright install
+
 # Install Chromium
 RUN playwright install chromium
+
+# Install Chromium
+RUN playwright install webkit
+
+# Install Chromium
+RUN playwright install firefox
 
 
 # Expose the port your app runs on
