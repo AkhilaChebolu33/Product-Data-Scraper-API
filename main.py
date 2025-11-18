@@ -32,8 +32,8 @@ def scrape_product():
                     context = await browser.new_context(ignore_https_errors=True)
                     page = await context.new_page()
 
-            price = None
-            image_src = None
+                price = None
+                image_src = None
 
             try:
                 await page.goto(url, timeout=60000)
