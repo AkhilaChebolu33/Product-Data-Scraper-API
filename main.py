@@ -17,6 +17,7 @@ def get_retailer_domain(url):
 def scrape_product():
     data = request.get_json()
     url = data.get('url')
+    browser_type = data.get('browser', 'chromium')  # Default to Chromium
 
     if not url:
         return jsonify({'error': 'Missing product URL'}), 400
@@ -24,8 +25,14 @@ def scrape_product():
     async def run_scraper():
         domain = get_retailer_domain(url)
         async with async_playwright() as p:
-            # Non-headless for debugging, switch to True when done
-            browser = await p.webkit.launch(headless=True, args=['--disable-dev-shm-usage'])
+            # Choose browser dynamically
+            if browser_type == 'webkit':
+                browser = await p.webkit.launch(headless=True, args=['--disable-dev-shm-usage'])
+            elif browser_type == 'firefox':
+                browser = await p.firefox.launch(headless=True, args=['--disable-dev-shm-usage'])
+            else:
+                browser = await p.chromium.launch(headless=True, args=['--disable-dev-shm-usage'])
+
             context = await browser.new_context(ignore_https_errors=True)
             page = await context.new_page()
 
@@ -34,15 +41,8 @@ def scrape_product():
 
             try:
                 await page.goto(url, timeout=60000)
-                print(f"[DEBUG] Navigated to: {page.url}")
-
-                # Wait for DOM content loaded + extra time for JS
                 await page.wait_for_load_state('domcontentloaded')
-                await page.wait_for_timeout(7000)
-
-                content = await page.content()
-                print(f"[DEBUG] Page content length: {len(content)}")
-                print(f"[DEBUG] Page snippet:\n{content[:1000]}")  # first 1000 chars
+                await page.wait_for_timeout(5000)
 
                 # -------------------------
                 # LOWE'S
@@ -61,9 +61,6 @@ def scrape_product():
 
                     # --- Output Results ---
                     print(f"Main Product Image URL: {image_src}\n\n\n")
-
-                    
-
                 # -------------------------
                 # HOME DEPOT
                 # -------------------------
@@ -243,16 +240,9 @@ def scrape_product():
 
                     # --- Output Results ---
                     print(f"Main Product Image URL: {image_src}\n\n\n")
-
-                   
-
-                
-
-
-
-                # -------------------------
-                # FALLBACK — OG IMAGE / META PRICE
-                # -------------------------
+                # ---------------------------
+                # Fallbacks
+                # ---------------------------
                 if not image_src:
                     og_img = await page.query_selector('meta[property="og:image"]')
                     image_src = await og_img.get_attribute('content') if og_img else None
@@ -261,32 +251,27 @@ def scrape_product():
                     meta_price = await page.query_selector('meta[itemprop="price"]')
                     price = await meta_price.get_attribute('content') if meta_price else None
 
-                await browser.close()
                 return {
                     'image_src': image_src or 'Not found',
                     'price': price.strip() if price else 'Not found'
                 }
 
             except Exception as e:
-                await browser.close()
                 print(f"[ERROR] Scraping failed: {str(e)}")
                 return {'error': f'Scraping failed: {str(e)}'}
-                
-            
+
             finally:
                 await browser.close()
 
     try:
-        
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(asyncio.wait_for(run_scraper(), timeout=120))
-
+        result = asyncio.run(run_scraper())  # Cleaner than creating new loops
         return jsonify(result)
     except asyncio.TimeoutError:
         print("[ERROR] Scraping timed out.")
-        print(traceback.format_exc())
         return jsonify({'error': 'Scraping timed out'}), 504
+    except Exception as e:
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/')
 def home():
@@ -296,7 +281,6 @@ def keep_alive():
     def ping():
         while True:
             try:
-                # requests.get("https://your-app-url.onrender.com")
                 requests.get("https://product-data-scraper-endpoint.onrender.com")
                 print("[INFO] Keep-alive ping successful")
             except Exception as e:
