@@ -278,7 +278,8 @@ def scrape_product():
                 
                     finally:
                         await browser.close()
-
+        asyncio.run(run_all_browsers)
+        
     try:
         
         loop = asyncio.new_event_loop()
