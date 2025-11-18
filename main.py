@@ -23,11 +23,14 @@ def scrape_product():
 
     async def run_scraper():
         domain = get_retailer_domain(url)
-        async with async_playwright() as p:
-            # Non-headless for debugging, switch to True when done
-            browser = await p.chromium.launch(headless=True, args=['--disable-dev-shm-usage'])
-            context = await browser.new_context(ignore_https_errors=True)
-            page = await context.new_page()
+        async def run_all_browsers():
+            async with async_playwright() as p:
+                for browser_type in [p.chromium, p.firefox, p.webkit]:
+
+                    # Non-headless for debugging, switch to True when done
+                    browser = await browser_type.launch(headless=True, args=['--disable-dev-shm-usage'])
+                    context = await browser.new_context(ignore_https_errors=True)
+                    page = await context.new_page()
 
             price = None
             image_src = None
