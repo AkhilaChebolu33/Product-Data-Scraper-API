@@ -25,6 +25,11 @@ RUN playwright install webkit
 # Install Chromium
 RUN playwright install firefox
 
+# Dependencies
+RUN playwright install-deps
+
+# apt dependencies
+RUN apt-get install libgtk-4-1\libavif13
 
 # Expose the port your app runs on
 EXPOSE 10000
