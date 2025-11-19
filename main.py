@@ -17,7 +17,7 @@ def get_retailer_domain(url):
 def scrape_product():
     data = request.get_json()
     url = data.get('url')
-    browser_type = data.get('browser', 'webkit')  # Default to Chromium
+    browser_type = data.get('browser', 'chromium')  # Default to Chromium
 
     if not url:
         return jsonify({'error': 'Missing product URL'}), 400
@@ -26,12 +26,12 @@ def scrape_product():
         domain = get_retailer_domain(url)
         async with async_playwright() as p:
             # Choose browser dynamically
-            if browser_type == 'chromium':
-                browser = await p.chromium.launch(headless=True, args=['--disable-dev-shm-usage'])
+            if browser_type == 'webkit':
+                browser = await p.webkit.launch(headless=True, args=['--disable-dev-shm-usage'])
             elif browser_type == 'firefox':
                 browser = await p.firefox.launch(headless=True, args=['--disable-dev-shm-usage'])
             else:
-                browser = await p.webkit.launch(headless=True, args=['--disable-dev-shm-usage'])
+                browser = await p.chromium.launch(headless=True, args=['--disable-dev-shm-usage'])
 
             context = await browser.new_context(ignore_https_errors=True)
             page = await context.new_page()
