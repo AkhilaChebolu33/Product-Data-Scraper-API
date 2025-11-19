@@ -1,5 +1,5 @@
 # Use the official Playwright image with matching version
-FROM mcr.microsoft.com/playwright/python:v1.56.1-jammy
+FROM mcr.microsoft.com/playwright/python:v1.46.0-jammy
 
 # Set working directory
 WORKDIR /app
@@ -11,7 +11,7 @@ COPY . .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install Playwright (same version as image)
-RUN pip install playwright==1.56.1
+RUN pip install playwright==1.46.0
 
 # Install browsers
 RUN playwright install chromium firefox webkit
