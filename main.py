@@ -135,6 +135,7 @@ def scrape_product():
                         image_src = await page.locator('img[src*="i5.walmartimages.com/seo/"]').get_attribute('src', timeout=120000)
                     except:
                         og_img = await page.query_selector('meta[property="og:image"]')
+                        image_src = await og_img.get_attribute('content') if og_img else "Image not found"
 
 
                     
