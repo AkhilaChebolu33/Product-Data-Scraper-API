@@ -17,7 +17,7 @@ def get_retailer_domain(url):
 def scrape_product():
     data = request.get_json()
     url = data.get('url')
-    browser_type = data.get('browser', 'chromium', 'webkit')  # Default to Chromium
+    browser_type = data.get('browser', 'webkit')  # Default to Chromium
 
     if not url:
         return jsonify({'error': 'Missing product URL'}), 400
