@@ -1,5 +1,5 @@
-# Use the official Playwright image with Python and all dependencies
-FROM mcr.microsoft.com/playwright/python:latest
+# Use the official Playwright image with matching version
+FROM mcr.microsoft.com/playwright/python:v1.56.1-jammy
 
 # Set working directory
 WORKDIR /app
@@ -10,39 +10,18 @@ COPY . .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright
-RUN pip install playwright==1.56.0
+# Install Playwright (same version as image)
+RUN pip install playwright==1.56.1
 
-# Install all browsers from playwright (chromium, webkit, firefox)
-RUN playwright install
+# Install browsers
+RUN playwright install chromium firefox webkit
 
-# Install Chromium
-RUN playwright install chromium
-
-# Install Chromium
-RUN playwright install webkit
-
-# Install Chromium
-RUN playwright install firefox
-
-# Dependencies
-RUN playwright install-deps
-
-# Package list for apt 
-RUN apt-get update && apt-get install -y \
-    libgtk-4-1 \
-    libavif13 \
- && apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# RUN apt-get install libgtk-4-1\ libavif13
-
-# Expose the port your app runs on
+# Expose the port
 EXPOSE 10000
 
-# Set default environment variable for PORT if not provided
 ENV PORT=10000
 
-# Start the Flask app using Gunicorn with extended timeout
+# Start the Flask app using Gunicorn
 CMD gunicorn --workers=2 --timeout=300 --bind 0.0.0.0:$PORT main:app
 
 
