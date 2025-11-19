@@ -27,7 +27,7 @@ def scrape_product():
         async with async_playwright() as p:
             # Choose browser dynamically
             if browser_type == 'webkit':
-                browser = await p.webkit.launch(headless=True, args=['--disable-dev-shm-usage'])
+                browser = await p.webkit.launch(headless=True, args=['--disable-dev-shm-usage', '--no-sandbox'])
             elif browser_type == 'firefox':
                 browser = await p.firefox.launch(headless=True, args=['--disable-dev-shm-usage'])
             else:
@@ -41,6 +41,7 @@ def scrape_product():
 
             try:
                 await page.goto(url, timeout=60000)
+                await page.wait_for_load_state('networkidle')
                 await page.wait_for_load_state('domcontentloaded')
                 await page.wait_for_timeout(2000)
 
@@ -122,20 +123,19 @@ def scrape_product():
                 # WALMART
                 # -------------------------
                 elif "walmart.com" in domain:
-                    # --- Extract Price ---
-                    await page.wait_for_selector('[itemprop="price"]', timeout=120000, state="attached")
-                    price_dollars = await page.text_content('[itemprop="price"]')
-    
-                    price = f"{price_dollars.strip()}"
-                    print(f"\n\n\nPrice: {price}")
+                    await page.wait_for_load_state('networkidle')
+                    try:
+                        price_dollars = await page.locator('[itemprop="price"]').text_content(timeout=120000)
+                        price = price_dollars.strip()
+                    except:
+                        meta_price = await page.query_selector('meta[itemprop="price"]')
+                        price = await meta_price.get_attribute('content') if meta_price else "Price not found"
 
-                    # --- Extract Main Product Image URL ---
-                    await page.wait_for_selector('img[src*="i5.walmartimages.com/seo/"]', timeout=120000, state="attached")
-                    image_element = await page.query_selector('img[src*="i5.walmartimages.com/seo/"]')
-                    image_src = await image_element.get_attribute('src')
+                    try:
+                        image_src = await page.locator('img[src*="i5.walmartimages.com/seo/"]').get_attribute('src', timeout=120000)
+                    except:
+                        og_img = await page.query_selector('meta[property="og:image"]')
 
-                    # --- Output Image
-                    print(f"Main Product Image URL: {image_src}\n\n\n")
 
                     
 
