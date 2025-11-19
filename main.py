@@ -43,7 +43,7 @@ def scrape_product():
                 await page.goto(url, timeout=60000)
                 await page.wait_for_load_state('networkidle')
                 await page.wait_for_load_state('domcontentloaded')
-                await page.wait_for_timeout(2000)
+                await page.wait_for_timeout(1000)
 
                 # -------------------------
                 # LOWE'S
