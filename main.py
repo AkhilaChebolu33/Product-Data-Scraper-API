@@ -123,14 +123,14 @@ def scrape_product():
                 # -------------------------
                 elif "walmart.com" in domain:
                     # --- Extract Price ---
-                    await page.wait_for_selector('[itemprop="price"]', timeout=15000, state="attached")
+                    await page.locator('[itemprop="price"]', timeout=15000, state="attached")
                     price_dollars = await page.text_content('[itemprop="price"]')
     
                     price = f"{price_dollars.strip()}"
                     print(f"\n\n\nPrice: {price}")
 
                     # --- Extract Main Product Image URL ---
-                    await page.wait_for_selector('img[src*="i5.walmartimages.com/seo/"]', timeout=15000, state="attached")
+                    await page.locator('img[src*="i5.walmartimages.com/seo/"]', timeout=15000, state="attached")
                     image_element = await page.query_selector('img[src*="i5.walmartimages.com/seo/"]')
                     image_src = await image_element.get_attribute('src')
 
