@@ -185,20 +185,18 @@ def scrape_product():
                 # Harbor Freight
                 # ----------------------------
                 elif "harborfreight.com" in domain:
-                    # Extract price using aria-label
-                    price_element = await page.query_selector('span[aria-label]')
-                    price = await price_element.get_attribute('aria-label') if price_element else "Price not found"
+                    await page.wait_for_load_state('networkidle')
+                    try:
+                        price_element = await page.query_selector('span[aria-label]')
+                        price = await price_element.get_attribute('aria-label') if price_element else "Price not found"
 
-                    print(f"\n\n\nPrice: {price}")
-
-                    # --- Extract Main Product Image URL ---
-                    await page.wait_for_selector('img[src*="www.harborfreight.com/media/catalog/product/"]', timeout=15000, state="attached")
-                    image_element = await page.query_selector('img[src*="www.harborfreight.com/media/catalog/product/"]')
-                    image_src = await image_element.get_attribute('src')
-
-                    # --- Output Results ---
-                    # print(f"\n\n\nPrice: {price}")
-                    print(f"Main Product Image URL: {image_src}\n\n\n")
+                        await page.wait_for_selector('img[src*="www.harborfreight.com/media/catalog/product/"]', timeout=60000)
+                        img_locator = page.locator('img[src*="www.harborfreight.com/media/catalog/product/"]')
+                        await img_locator.wait_for(timeout=60000)
+                        image_src = await img_locator.get_attribute('src')
+                    except:
+                        og_img = await page.query_selector('meta[property="og:image"]')
+                        image_src = await og_img.get_attribute('content') if og_img else "Image not found"
 
                     
 
