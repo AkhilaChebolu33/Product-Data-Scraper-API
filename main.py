@@ -40,6 +40,10 @@ def scrape_product():
             image_src = None
 
             try:
+                await page.set_user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ""(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+
+
                 await page.goto(url, timeout=60000)
                 await page.wait_for_load_state('domcontentloaded')
                 await page.wait_for_timeout(2000)
