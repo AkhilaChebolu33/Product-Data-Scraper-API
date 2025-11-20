@@ -131,7 +131,7 @@ def scrape_product():
                 # WALMART
                 # -------------------------
                 elif "walmart.com" in domain:
-                    await page.wait_for_load_state('networkidle')
+                    await page.wait_for_load_state('domcontentloaded')
                     await page.evaluate("window.scrollBy(0, document.body.scrollHeight)")
                     await page.wait_for_timeout(3000)
 
