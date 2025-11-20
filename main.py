@@ -131,28 +131,27 @@ def scrape_product():
                 # WALMART
                 # -------------------------
                 elif "walmart.com" in domain:
-                    page.set_default_navigation_timeout(180000)
-                    page.set_default_timeout(180000)
+                    # --- Extract Price ---
+                    await page.wait_for_selector('[itemprop="price"]', timeout=1200000, state="attached")
+                    # await page.wait_for_selector('[class="a-price-whole"]', timeout=60000, state="attached")
+                    # await page.wait_for_selector('[class="a-price-decimal"]', timeout=60000, state="attached")
+                    # await page.wait_for_selector('[class="a-price-fraction"]', timeout=60000, state="attached")
 
-                    await page.goto(url)
-                    await page.wait_for_load_state('networkidle')
+                    ## price_symbol = await page.text_content('[class="a-price-symbol"]')
+                    price_dollars = await page.text_content('[itemprop="price"]')
+                    ## price_decimal = await page.text_content('[class="a-price-decimal"]')
+                    # price_cents = await page.text_content('[class="a-price-fraction"]')
+                    price = f"{price_dollars.strip()}"
+                    print(f"\n\n\nPrice: {price}")
 
-                    try:
-                        locator = page.locator('[itemprop="price"]')
-                        await locator.wait_for(timeout=120000)
-                        price_dollars = await locator.text_content()
-                        price = price_dollars.strip()
-                    except:
-                        meta_price = await page.query_selector('meta[itemprop="price"]')
-                        price = await meta_price.get_attribute('content') if meta_price else "Price not found"
+                    # --- Extract Main Product Image URL ---
+                    await page.wait_for_selector('img[src*="i5.walmartimages.com/seo/"]', timeout=1200000, state="attached")
+                    image_element = await page.query_selector('img[src*="i5.walmartimages.com/seo/"]')
+                    image_src = await image_element.get_attribute('src')
 
-                    try:
-                        img_locator = page.locator('img[src*="i5.walmartimages.com/seo/"]')
-                        await img_locator.wait_for(timeout=120000)
-                        image_src = await img_locator.get_attribute('src')
-                    except:
-                        og_img = await page.query_selector('meta[property="og:image"]')
-                        image_src = await og_img.get_attribute('content') if og_img else "Image not found"
+                    # --- Output Results ---
+                    # print(f"\n\n\nPrice: {price}")
+                    print(f"Main Product Image URL: {image_src}\n\n\n")
 
                     
 
