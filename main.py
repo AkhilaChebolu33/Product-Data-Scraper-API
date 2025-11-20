@@ -133,14 +133,14 @@ def scrape_product():
                 elif "walmart.com" in domain:
                     await page.wait_for_load_state('domcontentloaded')
                     await page.evaluate("window.scrollBy(0, document.body.scrollHeight)")
-                    await page.wait_for_timeout(3000)
+                    await page.wait_for_timeout(2000)
 
                     try:
-                        price_element = await page.query_selector('[itemprop="price"]', timeout=120000, state="attached")
+                        price_element = await page.query_selector('[itemprop="price"]', timeout=15000, state="attached")
                         price = await price_element.get_attribute('price') if price_element else "Price not found"
 
-                        img_locator = page.locator('img[src*="i5.walmartimages.com/seo/"]', timeout=120000, state="attached")
-                        await img_locator.wait_for(timeout=60000)
+                        img_locator = page.locator('img[src*="i5.walmartimages.com/seo/"]', timeout=15000, state="attached")
+                        await img_locator.wait_for(timeout=15000)
                         image_src = await img_locator.get_attribute('src')
                     except:
                         og_img = await page.query_selector('meta[property="og:image"]')
@@ -179,14 +179,14 @@ def scrape_product():
                 elif "harborfreight.com" in domain:
                     await page.wait_for_load_state('networkidle')
                     await page.evaluate("window.scrollBy(0, document.body.scrollHeight)")
-                    await page.wait_for_timeout(3000)
+                    await page.wait_for_timeout(2000)
 
                     try:
-                        price_element = await page.query_selector('span[aria-label]')
+                        price_element = await page.query_selector('span[aria-label]', timeout=15000, state="attached")
                         price = await price_element.get_attribute('aria-label') if price_element else "Price not found"
 
-                        img_locator = page.locator('img[src*="www.harborfreight.com/media/catalog/product/"]')
-                        await img_locator.wait_for(timeout=60000)
+                        img_locator = page.locator('img[src*="www.harborfreight.com/media/catalog/product/"]', timeout=15000, state="attached")
+                        await img_locator.wait_for(timeout=15000)
                         image_src = await img_locator.get_attribute('src')
                     except:
                         og_img = await page.query_selector('meta[property="og:image"]')
