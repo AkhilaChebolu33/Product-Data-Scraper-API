@@ -13,6 +13,13 @@ app = Flask(__name__)
 def get_retailer_domain(url):
     return urlparse(url).netloc.lower()
 
+BRIGHTDATA_USERNAME = os.getenv("BRIGHTDATA_USERNAME")
+BRIGHTDATA_PASSWORD = os.getenv("BRIGHTDATA_PASSWORD")
+BRIGHTDATA_HOST = os.getenv("BRIGHTDATA_HOST", "zproxy.lum-superproxy.io")
+BRIGHTDATA_PORT = os.getenv("BRIGHTDATA_PORT", "22225")
+
+proxy_url = f"http://{BRIGHTDATA_USERNAME}:{BRIGHTDATA_PASSWORD}@{BRIGHTDATA_HOST}:{BRIGHTDATA_PORT}"
+
 @app.route('/scrape-product', methods=['POST'])
 def scrape_product():
     data = request.get_json()
@@ -27,24 +34,22 @@ def scrape_product():
         async with async_playwright() as p:
             # Choose browser dynamically
             if browser_type == 'webkit':
-                browser = await p.webkit.launch(headless=True, args=['--disable-dev-shm-usage'])
+                browser = await p.webkit.launch(headless=True, args=['--disable-dev-shm-usage', '--no-sandbox', f'--proxy-server={proxy_url}'])
             elif browser_type == 'firefox':
                 browser = await p.firefox.launch(headless=True, args=['--disable-dev-shm-usage'])
             else:
                 browser = await p.chromium.launch(headless=True, args=['--disable-dev-shm-usage'])
 
-            context = await browser.new_context(ignore_https_errors=True)
+            context = await browser.new_context(ignore_https_errors=True, user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15",
+            viewport={"width": 1280, "height": 800})
             page = await context.new_page()
 
             price = None
             image_src = None
 
             try:
-                # await page.set_user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ""(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-                # await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-
-
                 await page.goto(url, timeout=60000)
+                await page.wait_for_load_state('networkidle')
                 await page.wait_for_load_state('domcontentloaded')
                 await page.wait_for_timeout(2000)
 
@@ -155,47 +160,23 @@ def scrape_product():
                 # Menards
                 # ----------------------------
                 elif "menards.com" in domain:
-                    # Create context with spoofed user-agent
-                    await browser.close()    # Close old context + page, required to recreate UA
-                    browser = await p.chromium.launch(headless=True)
+                    # --- Extract Price ---
+                    await page.wait_for_selector('[class="price-big-val float-left"]', timeout=15000, state="attached")
+                    await page.wait_for_selector('[class="cents-val float-left"]', timeout=15000, state="attached")
 
-                    context = await browser.new_context(
-                        ignore_https_errors=True,
-                        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                                    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-                    )
-
-                    # Remove webdriver flag
-                    await context.add_init_script(
-                        "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-                    )
-
-                    page = await context.new_page()
-
-                    await page.goto(url, timeout=90000)
-                    await page.wait_for_load_state('networkidle')
-
-                    html = await page.content()
-                    if "captcha" in html.lower() or "robot" in html.lower():
-                        return {"error": "Menards bot-detection triggered. Proxy required."}
-
-                    # Extract price
-                    await page.wait_for_selector('.price-big-val.float-left', timeout=30000)
-                    await page.wait_for_selector('.cents-val.float-left', timeout=30000)
-
-                    price_dollars = await page.text_content('.price-big-val.float-left')
-                    price_cents = await page.text_content('.cents-val.float-left')
+                    
+                    price_dollars = await page.text_content('[class="price-big-val float-left"]')
+                    price_cents = await page.text_content('[class="cents-val float-left"]')
                     price = f"${price_dollars.strip()}.{price_cents.strip()}"
+                    print(f"\n\n\nPrice: {price}")
 
-                    # Extract image
-                    img = await page.query_selector('img[src*="cdn.menardc.com/main/items/media/"]')
-                    image_src = await img.get_attribute('src') if img else None
+                    # --- Extract Main Product Image URL ---
+                    await page.wait_for_selector('img[src*="cdn.menardc.com/main/items/media/"]', timeout=15000, state="attached")
+                    image_element = await page.query_selector('img[src*="cdn.menardc.com/main/items/media/"]')
+                    image_src = await image_element.get_attribute('src')
 
-                    return {
-                        "price": price,
-                        "image_src": image_src or "Not found"
-                    }
-
+                    # --- Output Results ---
+                    print(f"Main Product Image URL: {image_src}\n\n\n")
 
                     
 
