@@ -40,8 +40,8 @@ def scrape_product():
             image_src = None
 
             try:
-                await page.set_user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ""(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-                await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+                # await page.set_user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ""(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                # await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
 
                 await page.goto(url, timeout=60000)
@@ -155,23 +155,47 @@ def scrape_product():
                 # Menards
                 # ----------------------------
                 elif "menards.com" in domain:
-                    # --- Extract Price ---
-                    await page.wait_for_selector('[class="price-big-val float-left"]', timeout=15000, state="attached")
-                    await page.wait_for_selector('[class="cents-val float-left"]', timeout=15000, state="attached")
+                    # Create context with spoofed user-agent
+                    await browser.close()    # Close old context + page, required to recreate UA
+                    browser = await p.chromium.launch(headless=True)
 
-                    
-                    price_dollars = await page.text_content('[class="price-big-val float-left"]')
-                    price_cents = await page.text_content('[class="cents-val float-left"]')
+                    context = await browser.new_context(
+                        ignore_https_errors=True,
+                        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                                    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                    )
+
+                    # Remove webdriver flag
+                    await context.add_init_script(
+                        "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+                    )
+
+                    page = await context.new_page()
+
+                    await page.goto(url, timeout=90000)
+                    await page.wait_for_load_state('networkidle')
+
+                    html = await page.content()
+                    if "captcha" in html.lower() or "robot" in html.lower():
+                        return {"error": "Menards bot-detection triggered. Proxy required."}
+
+                    # Extract price
+                    await page.wait_for_selector('.price-big-val.float-left', timeout=30000)
+                    await page.wait_for_selector('.cents-val.float-left', timeout=30000)
+
+                    price_dollars = await page.text_content('.price-big-val.float-left')
+                    price_cents = await page.text_content('.cents-val.float-left')
                     price = f"${price_dollars.strip()}.{price_cents.strip()}"
-                    print(f"\n\n\nPrice: {price}")
 
-                    # --- Extract Main Product Image URL ---
-                    await page.wait_for_selector('img[src*="cdn.menardc.com/main/items/media/"]', timeout=15000, state="attached")
-                    image_element = await page.query_selector('img[src*="cdn.menardc.com/main/items/media/"]')
-                    image_src = await image_element.get_attribute('src')
+                    # Extract image
+                    img = await page.query_selector('img[src*="cdn.menardc.com/main/items/media/"]')
+                    image_src = await img.get_attribute('src') if img else None
 
-                    # --- Output Results ---
-                    print(f"Main Product Image URL: {image_src}\n\n\n")
+                    return {
+                        "price": price,
+                        "image_src": image_src or "Not found"
+                    }
+
 
                     
 
