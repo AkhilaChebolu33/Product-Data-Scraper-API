@@ -131,20 +131,16 @@ def scrape_product():
                 # WALMART
                 # -------------------------
                 elif "walmart.com" in domain:
-                    page.set_default_timeout(180000)
+                    await page.wait_for_load_state('networkidle')
                     await page.evaluate("window.scrollBy(0, document.body.scrollHeight)")
+                    await page.wait_for_timeout(3000)
 
                     try:
-                        locator = page.locator('[itemprop="price"]')
-                        await locator.wait_for(timeout=120000)
-                        price = (await locator.text_content()).strip()
-                    except:
-                        meta_price = await page.query_selector('meta[itemprop="price"]')
-                        price = await meta_price.get_attribute('content') if meta_price else "Price not found"
+                        price_element = await page.query_selector('[itemprop="price"]', timeout=120000, state="attached")
+                        price = await price_element.get_attribute('price') if price_element else "Price not found"
 
-                    try:
-                        img_locator = page.locator('img[src*="i5.walmartimages.com/seo/"]')
-                        await img_locator.wait_for(timeout=120000)
+                        img_locator = page.locator('img[src*="i5.walmartimages.com/seo/"]', timeout=120000, state="attached")
+                        await img_locator.wait_for(timeout=60000)
                         image_src = await img_locator.get_attribute('src')
                     except:
                         og_img = await page.query_selector('meta[property="og:image"]')
