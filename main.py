@@ -132,8 +132,7 @@ def scrape_product():
                 # -------------------------
                 elif "walmart.com" in domain:
                     page.set_default_timeout(180000)
-                    await page.goto(url)
-                    await page.wait_for_load_state('networkidle')
+                    await page.evaluate("window.scrollBy(0, document.body.scrollHeight)")
 
                     try:
                         locator = page.locator('[itemprop="price"]')
