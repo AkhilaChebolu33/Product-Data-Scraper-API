@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install playwright==1.46.0
 
 # Install browsers
-RUN playwright install chromium firefox webkit
+RUN playwright install webkit
 
 # Expose the port
 EXPOSE 10000
