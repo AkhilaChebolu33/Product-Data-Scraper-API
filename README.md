@@ -1,1 +1,1 @@
-# Product-Data-Scraper-API
+# Product-Specs-Scraper-API
