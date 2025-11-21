@@ -187,7 +187,7 @@ def scrape_product():
                 # ----------------------------
                 # HYPERTOUGH
                 # ----------------------------
-                elif "hypertough" in domain:
+                elif "hyper-tough" in domain:
                     # --- Extract Specs ---
                     await page.wait_for_selector('[class="nt1"]', timeout=1200000, state="attached")
     
