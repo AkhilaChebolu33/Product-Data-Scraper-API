@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 app = Flask(__name__)
 
 def get_retailer_domain(url):
-    return urlparse(url).netloc.lower()
+    return urlparse(url).path.lower()
 
 BRIGHTDATA_USERNAME = os.getenv("BRIGHTDATA_USERNAME")
 BRIGHTDATA_PASSWORD = os.getenv("BRIGHTDATA_PASSWORD")
@@ -44,8 +44,7 @@ def scrape_product():
             viewport={"width": 1280, "height": 800})
             page = await context.new_page()
 
-            price = None
-            image_src = None
+            specs = None
 
             try:
                 await page.goto(url, timeout=60000)
@@ -54,216 +53,342 @@ def scrape_product():
                 await page.wait_for_timeout(2000)
 
                 # -------------------------
-                # LOWE'S
+                # SKIL
                 # -------------------------
-                if "lowes.com" in domain:
-                    # --- Extract Price ---
-                    await page.wait_for_selector('[data-automation-id="product-price"]', timeout=15000, state="attached")
-                    price_dollars = await page.text_content('[data-automation-id="product-price"]')
-                    price = price_dollars.strip() if price_dollars else "Price not found"
-                    print(f"\n\n\nPrice: {price}")
+                if "skil" in domain:
+                    # --- Extract Specs ---
+                    await page.wait_for_selector('[class="sk-pdp-specifications__col-container-right"]', timeout=1200000, state="attached")
+                                        
+                    specs = await page.text_content('[class="sk-pdp-specifications__col-container-right"]')
+                    
+                    specifications = f"{specs.strip()}"
+                    print(f"\n\n\nPrice: {specifications}\n\n\n")
 
-                    # --- Extract Main Product Image URL ---
-                    await page.wait_for_selector('img[src*="lowes.com/product/"]', timeout=15000, state="attached")
-                    image_element = await page.query_selector('img[src*="lowes.com/product/"]')
-                    image_src = await image_element.get_attribute('src')
 
-                    # --- Output Results ---
-                    print(f"Main Product Image URL: {image_src}\n\n\n")
                 # -------------------------
-                # HOME DEPOT
+                # RYOBI
                 # -------------------------
-                elif "homedepot.com" in domain:
-                    # --- Extract Price ---
-                    await page.wait_for_selector('[class="sui-font-display sui-leading-none sui-text-3xl"]', timeout=15000, state="attached")
-                    await page.wait_for_selector('[class="sui-font-display sui-leading-none sui-px-[2px] sui-text-9xl sui--translate-y-[0.5rem]"]', timeout=15000, state="attached")
+                elif "ryobi" in domain:
+                    # Scroll and click Specifications button
+                    specs_button = page.locator('button:has-text("Specifications")')
+                    await specs_button.scroll_into_view_if_needed()
+                    await specs_button.click(force=True)
 
-                    price_parts = await page.query_selector_all('[class="sui-font-display sui-leading-none sui-text-3xl"]')
-                    dollar_sign = await price_parts[0].text_content()
-                    cents = await price_parts[1].text_content()
-                    integer_part = await page.text_content('[class="sui-font-display sui-leading-none sui-px-[2px] sui-text-9xl sui--translate-y-[0.5rem]"]')
-                    price = f"{dollar_sign}{integer_part}.{cents}"
+                    # Wait for the specs list to appear
+                    await page.wait_for_selector('dl.specs-table__list', timeout=30000)
 
-                    # --- Extract Main Product Image URL ---
-                    await page.wait_for_selector('img[src*="images.thdstatic.com"]', timeout=15000, state="attached")
-                    image_element = await page.query_selector('img[src*="images.thdstatic.com"]')
-                    image_src = await image_element.get_attribute('src')
+                    # Locate all spec items
+                    rows = page.locator('div.specs-table__item')
+                    count = await rows.count()
+                    print(f"Found {count} specification rows.")
 
-                    # --- Output Results ---
-                    print(f"\n\n\nPrice: {price}")
-                    print(f"Main Product Image URL: {image_src}\n\n\n")
+                    specs = {}
+                    for i in range(count):
+                        label = await rows.nth(i).locator('dt.specs-table__term').text_content()
+                        value = await rows.nth(i).locator('dd.specs-table__def').text_content()
+                        specs[label.strip()] = value.strip()
+
+                    print("\nSPECIFICATIONS:\n")
+                    for key, val in specs.items():
+                        print(f"{key}: {val}")
+
 
                     
 
                 # -------------------------
-                # AMAZON
+                # CRAFTSMAN
                 # -------------------------
-                elif "amazon.com" in domain:
-                    # --- Extract Price ---
-                    await page.wait_for_selector('[class="a-price-symbol"]', timeout=15000, state="attached")
-                    await page.wait_for_selector('[class="a-price-whole"]', timeout=15000, state="attached")
-                    await page.wait_for_selector('[class="a-price-decimal"]', timeout=15000, state="attached")
-                    await page.wait_for_selector('[class="a-price-fraction"]', timeout=15000, state="attached")
+                elif "craftsman" in domain:
+                    # Wait for the container to be attached
+                    await page.wait_for_selector('.container.w-full.bg-color-brand-surface-primary', timeout=1200000, state="attached")
 
-                    ## price_symbol = await page.text_content('[class="a-price-symbol"]')
-                    price_dollars = await page.text_content('[class="a-price-whole"]')
-                    ## price_decimal = await page.text_content('[class="a-price-decimal"]')
-                    price_cents = await page.text_content('[class="a-price-fraction"]')
-                    price = f"${price_dollars.strip()}{price_cents.strip()}"
-                    print(f"\n\n\nPrice: {price}")
+                    # Get the third <div> inside the container
+                    specs_div = page.locator('.container.w-full.bg-color-brand-surface-primary >> div:nth-of-type(3)')
 
-                    # --- Extract Main Product Image URL ---
-                    # await page.wait_for_selector('img[src*="m.media-amazon.com/images/I"]', timeout=60000, state="attached")
-                    # image_element = await page.query_selector('img[src*="m.media-amazon.com/images/I"]')
+                    # Click the Specifications button to expand the section
+                    await page.click('button:has-text("Specifications")')
+
+
+                    # Wait for the expanded accordion content to be visible
+                    await page.wait_for_selector('[data-state="open"] >> div.flex.flex-col.gap-4.items-start', timeout=5000)
+
+                    # Target the rows inside the expanded specifications section
+                    rows = page.locator('[data-state="open"] >> div.flex.flex-col.gap-4.items-start >> div.flex.w-full.flex-col >> div.flex.justify-between.px-3.py-4')
+
+                    # Count the number of rows
+                    count = await rows.count()
+                    print(f"Found {count} specification rows.")
+
+                    # Extract label-value pairs
+                    specs = {}
+
+                    for i in range(count):
+                        row = rows.nth(i)
+                        label = await row.locator('div.prose-label-medium-sm').text_content()
+                        value = await row.locator('div.prose-label-bold-sm').text_content()
+                        specs[label.strip()] = value.strip()
+
+                    # Print the results
+                    print("\n\n\nSPECIFICATIONS:\n")
+                    for key, val in specs.items():
+                        print(f"{key}: {val}")
+                    print("\n\n\n")
                     
 
-                    await page.wait_for_selector('img#landingImage', timeout=15000, state="attached")
-                    image_element = await page.query_selector('img#landingImage')
-                    image_src = await image_element.get_attribute('src')
+                # -------------------------
+                # WORX
+                # -------------------------
+                elif "worx" in domain:
+                    # --- Extract Specs ---
+                    # Click the Technical Specs accordion
+                    await page.click('a.switch:has-text("Technical Specs")')
 
-                    # --- Output Results ---
-                    # print(f"\n\n\nPrice: {price}")
-                    print(f"Main Product Image URL: {image_src}\n\n\n")
+                    # Wait for the expanded section to be visible
+                    await page.wait_for_selector('#VK54JDL.ui-accordion-content-active', timeout=5000)
 
+                    # Locate all spec rows inside Technical Specs
+                    rows = page.locator('#VK54JDL [data-content-type="spec_row"]')
+                    count = await rows.count()
+                    print(f"Found {count} specification rows.")
+
+                    specs = {}
+                    for i in range(count):
+                        row = rows.nth(i)
+                        label = await row.locator('div.spec-label').text_content()
+                        value = await row.locator('div.spec-value').text_content()
+                        specs[label.strip()] = value.strip()
+
+                    # Print results
+                    print("\nTECHNICAL SPECS:\n")
+                    for key, val in specs.items():
+                        print(f"{key}: {val}")
+                
+                # ----------------------------
+                # KOBALT
+                # ----------------------------
+                elif "kobalt" in domain:
+                    # --- Extract Specs ---
+                    print(f"specs")
+
+                # ----------------------------
+                # MASTERFORCE
+                # ----------------------------
+                elif "masterforce" in domain:
+                    # --- Extract Specs ---
+                    await page.wait_for_selector('[class="card-body row m-0 w-100 justify-content-center col-12"]', timeout=1200000, state="attached")
+                     
+                    specs = await page.text_content('[class="card-body row m-0 w-100 justify-content-center col-12"]')
+                    
+                    specifications = f"{specs.strip()}"
+                    print(f"\n\n\nPrice: {specifications}\n\n\n")
                     
 
-                # -------------------------
-                # WALMART
-                # -------------------------
-                elif "walmart.com" in domain:
-                    await page.wait_for_load_state('domcontentloaded')
-                    await page.evaluate("window.scrollBy(0, document.body.scrollHeight)")
-                    await page.wait_for_timeout(2000)
 
-                    try:
-                        price_element = await page.query_selector('[itemprop="price"]', timeout=15000, state="attached")
-                        price = await price_element.get_attribute('price') if price_element else "Price not found"
+                # ----------------------------
+                # HYPERTOUGH
+                # ----------------------------
+                elif "hypertough" in domain:
+                    # --- Extract Specs ---
+                    await page.wait_for_selector('[class="nt1"]', timeout=1200000, state="attached")
+    
+                    specs = await page.text_content('[class="nt1"]')
 
-                        img_locator = page.locator('img[src*="i5.walmartimages.com/seo/"]', timeout=15000, state="attached")
-                        await img_locator.wait_for(timeout=15000)
-                        image_src = await img_locator.get_attribute('src')
-                    except:
-                        og_img = await page.query_selector('meta[property="og:image"]')
-                        image_src = await og_img.get_attribute('content') if og_img else "Image not found"
+                    specifications = f"{specs.strip()}"
+                    print(f"\n\n\nPrice: {specifications}\n\n\n")
 
                     
 
                 # ----------------------------
-                # Menards
+                # BAUER
                 # ----------------------------
-                elif "menards.com" in domain:
-                    # --- Extract Price ---
-                    await page.wait_for_selector('[class="price-big-val float-left"]', timeout=15000, state="attached")
-                    await page.wait_for_selector('[class="cents-val float-left"]', timeout=15000, state="attached")
-
+                elif "bauer" in domain:
+                    # --- Extract Specs ---
+                    await page.wait_for_selector('[id="SpecificationsContent"]', timeout=1200000, state="attached")
+    
+                    specs = await page.text_content('[id="SpecificationsContent"]')
                     
-                    price_dollars = await page.text_content('[class="price-big-val float-left"]')
-                    price_cents = await page.text_content('[class="cents-val float-left"]')
-                    price = f"${price_dollars.strip()}.{price_cents.strip()}"
-                    print(f"\n\n\nPrice: {price}")
-
-                    # --- Extract Main Product Image URL ---
-                    await page.wait_for_selector('img[src*="cdn.menardc.com/main/items/media/"]', timeout=15000, state="attached")
-                    image_element = await page.query_selector('img[src*="cdn.menardc.com/main/items/media/"]')
-                    image_src = await image_element.get_attribute('src')
-
-                    # --- Output Results ---
-                    print(f"Main Product Image URL: {image_src}\n\n\n")
-
-                    
-
-
-                # ----------------------------
-                # Harbor Freight
-                # ----------------------------
-                elif "harborfreight.com" in domain:
-                    await page.wait_for_load_state('networkidle')
-                    await page.evaluate("window.scrollBy(0, document.body.scrollHeight)")
-                    await page.wait_for_timeout(2000)
-
-                    try:
-                        price_element = await page.query_selector('span[aria-label]', timeout=15000, state="attached")
-                        price = await price_element.get_attribute('aria-label') if price_element else "Price not found"
-
-                        img_locator = page.locator('img[src*="www.harborfreight.com/media/catalog/product/"]', timeout=15000, state="attached")
-                        await img_locator.wait_for(timeout=15000)
-                        image_src = await img_locator.get_attribute('src')
-                    except:
-                        og_img = await page.query_selector('meta[property="og:image"]')
-                        image_src = await og_img.get_attribute('content') if og_img else "Image not found"
-
-                    
-
-                # ----------------------------
-                # Target
-                # ----------------------------
-                elif "target.com" in domain:
-                    await page.wait_for_selector('[class="sc-44e8b7a0-1 LjEZN"]', timeout=15000)
-                    price_dollars = await page.text_content('[class="sc-44e8b7a0-1 LjEZN"]')
-                    price = price_dollars.strip() if price_dollars else "Price not found"
-                    print(f"\n\n\nPrice: {price}")
-
-                    # --- Extract Main Product Image URL ---
-                    await page.wait_for_selector('img[src*="target.scene7.com/is/image/Target/"]', timeout=15000)
-                    image_element = await page.query_selector('img[src*="target.scene7.com/is/image/Target/"]')
-                    image_src = await image_element.get_attribute('src')        
-                    # --- Output Results ---
-                    print(f"Main Product Image URL: {image_src}\n\n\n")
-                    
+                    specifications = f"{specs.strip()}"
+                    print(f"\n\n\nPrice: {specifications}\n\n\n")
                     
                 # -------------------------
-                # Tractor Supply Co.
+                # HERCULES
                 # -------------------------
-                elif "tractorsupply.com" in domain:
-                    # --- Extract Price ---
-                    await page.wait_for_selector('[data-testid="product-price"]', timeout=15000, state="attached")
-                    price_dollars = await page.text_content('[data-testid="product-price"]')
-                    price = price_dollars.strip() if price_dollars else "Price not found"
-                    print(f"\n\n\nPrice: {price}")
+                elif "hercules" in domain:
+                    await page.wait_for_selector('[id="SpecificationsContent"]', timeout=1200000, state="attached")
+    
+                    specs = await page.text_content('[id="SpecificationsContent"]')
+                    
+                    specifications = f"{specs.strip()}"
+                    print(f"\n\n\nPrice: {specifications}\n\n\n")
+                
+                # -------------------------
+                # RIGID
+                # -------------------------
+                elif "rigid" in domain:
+                    await page.wait_for_selector('[class="specifications-table"]', timeout=1200000, state="attached")
+    
 
-                    # --- Extract Main Product Image URL ---
-                    await page.wait_for_selector('img[src*="tractorsupply.com/is/image/TractorSupply/"]', timeout=15000, state="attached")
-                    image_element = await page.query_selector('img[src*="tractorsupply.com/is/image/TractorSupply/"]')
-                    image_src = await image_element.get_attribute('src')
+                    specs = await page.text_content('[class="specifications-table"]')
+                    
+                    specifications = f"{specs.strip()}"
+                    print(f"\n\n\nPrice: {specifications}\n\n\n")
 
-                    # --- Output Results ---
-                    print(f"Main Product Image URL: {image_src}\n\n\n")
-
+                # -------------------------
+                # BLACKDECKER
+                # -------------------------
+                elif "blackanddecker" in domain:
+                    await page.wait_for_selector('[class="mb-[10px]"]', timeout=1200000, state="attached")
+    
+                    specs = await page.text_content('[class="mb-[10px]"]')
+                    
+                    specifications = f"{specs.strip()}"
+                    print(f"\n\n\nPrice: {specifications}\n\n\n")
                    
                 
                 # --------------------------
-                # Canadiantire
+                # MILWAUKEE
                 # --------------------------
-                elif "canadiantire.ca" in domain:
-                    # --- Extract Price ---
-                    await page.wait_for_selector('[class="price__value"]', timeout=15000, state="attached")
-                    price_dollars = await page.text_content('[class="price__value"]')
-                    price = price_dollars.strip() if price_dollars else "Price not found"
-                    print(f"\n\n\nPrice: {price}")
+                elif "milwaukee" in domain:
+                    # --- Extract Specs ---
+                    await page.wait_for_selector('[class="specs-container text-14 leading-tight font-helvetica55 text-gray-900 w-[480px]"]', timeout=1200000, state="attached")
+    
+                    specs = await page.text_content('[class="specs-container text-14 leading-tight font-helvetica55 text-gray-900 w-[480px]"]')
+                    ## price_decimal = await page.text_content('[class="a-price-decimal"]')
+                    # price_cents = await page.text_content('[class="a-price-fraction"]')
+                    specifications = f"{specs.strip()}"
+                    print(f"\n\n\nPrice: {specifications}\n\n\n")
 
-                    # --- Extract Main Product Image URL ---
-                    await page.wait_for_selector('img[src*="canadiantire.ca"]', timeout=15000, state="attached")
-                    image_element = await page.query_selector('img[src*="canadiantire.ca"]')
-                    image_src = await image_element.get_attribute('src')
+                # --------------------------
+                # MAKITA
+                # --------------------------
+                elif "makita" in domain:
+                    # --- Extract Specs ---
+                    await page.wait_for_selector('[class="detail-specs js-columns"]', timeout=1200000, state="attached")
+    
+                    specs = await page.text_content('[class="detail-specs js-columns"]')
                     
+                    specifications = f"{specs.strip()}"
+                    print(f"\n\n\nPrice: {specifications}\n\n\n")
+                
+                # --------------------------
+                # DEWALT
+                # --------------------------
+                elif "dewalt" in domain:
+                    # --- Extract Specs ---
+                    await page.wait_for_selector('[class="coh-container coh-style-specifications"]', timeout=1200000, state="attached")
+    
+                    specs = await page.text_content('[class="coh-container coh-style-specifications"]')
+                    
+                    specifications = f"{specs.strip()}"
+                    print(f"\n\n\nPrice: {specifications}\n\n\n")
+                
+                # --------------------------
+                # METABO
+                # --------------------------
+                elif "metabo" in domain:
+                    # --- Extract Specs ---
+                    await page.wait_for_selector('[id="attributes"]', timeout=1200000, state="attached")
+    
+                    specs = await page.text_content('[id="attributes"]')
+                    
+                    specifications = f"{specs.strip()}"
+                    print(f"\n\n\nPrice: {specifications}\n\n\n")
+                
+                # --------------------------
+                # BOSCH
+                # --------------------------
+                elif "bosch" in domain:
+                    # --- Extract Specs ---
+                    await page.wait_for_selector('[class="table__body"]', timeout=1200000, state="attached")
+    
+                    specs = await page.text_content('[class="table__body"]')
+                    
+                    specifications = f"{specs.strip()}"
+                    print(f"\n\n\nPrice: {specifications}\n\n\n")
 
-                    # --- Output Results ---
-                    print(f"Main Product Image URL: {image_src}\n\n\n")
+                # --------------------------
+                # DREMEL
+                # --------------------------
+                elif "dremel" in domain:
+                    # --- Extract Specs ---
+                    await page.wait_for_selector('[class="TechnicalSpecification_tablesWrapper__zVSHu"]', timeout=1200000, state="attached")
+    
+                    specs = await page.text_content('[class="TechnicalSpecification_tablesWrapper__zVSHu"]')
+                    
+                    specifications = f"{specs.strip()}"
+                    print(f"\n\n\nPrice: {specifications}\n\n\n")
+                
+                # --------------------------
+                # GREENWORKS
+                # --------------------------
+                elif "greenworks" in domain:
+                    # --- Extract Specs ---
+                    await page.wait_for_selector('[class="specifications"]', timeout=1200000, state="attached")
+                    await page.wait_for_selector('[class="additional-specs"]', timeout=1200000, state="attached") 
+
+                    ## price_symbol = await page.text_content('[class="a-price-symbol"]')
+                    specs_1 = await page.text_content('[class="specifications"]')
+                    specs_2 = await page.text_content('[class="additional-specs"]')
+
+                    specifications = f"{specs_1.strip()}\n\n\n{specs_2.strip()}"
+                    print(f"\n\n\SPECIFICATIONS: {specifications}\n\n\n")
+                
+                # --------------------------
+                # KREG
+                # --------------------------
+                elif "kreg" in domain:
+                    # --- Extract Specs ---
+                    await page.wait_for_selector('[class="grid md:grid-cols-2 gap-4 md:gap-6"]', timeout=1200000, state="attached")
+    
+                    specs = await page.text_content('[class="grid md:grid-cols-2 gap-4 md:gap-6"]')
+                    
+                    specifications = f"{specs.strip()}"
+                    print(f"\n\n\nPrice: {specifications}\n\n\n")
+                
+                # --------------------------
+                # MASTERCRAFT
+                # --------------------------
+                elif "mastercraft" in domain:
+                    # --- Extract Specs ---
+                    await page.wait_for_selector('[class="flex flex-col gap-4 items-start pb-6 sm:pb-8 text-color-brand-text-secondary prose-body-medium-sm xl:prose-body-medium-md prose-ol:pl-5 prose-ul:pl-5 prose-ul:list-disc prose-ol:list-decimal [&_::marker]:text-color-brand-text-secondary [&_p_a]:underline !prose-body-medium-sm"]', timeout=1200000, state="attached")
+    
+                    specs = await page.text_content('[class="flex flex-col gap-4 items-start pb-6 sm:pb-8 text-color-brand-text-secondary prose-body-medium-sm xl:prose-body-medium-md prose-ol:pl-5 prose-ul:pl-5 prose-ul:list-disc prose-ol:list-decimal [&_::marker]:text-color-brand-text-secondary [&_p_a]:underline !prose-body-medium-sm"]')
+                    
+                    specifications = f"{specs.strip()}"
+                    print(f"\n\n\nPrice: {specifications}\n\n\n")
+                
+                # --------------------------
+                # HILTI
+                # --------------------------
+                elif "hilti" in domain:
+                    # --- Extract Specs ---
+                    await page.wait_for_selector('[class="px-1 mb-2"]', timeout=1200000, state="attached")
+    
+                    specs = await page.text_content('[class="px-1 mb-2"]')
+                    
+                    specifications = f"{specs.strip()}"
+                    print(f"\n\n\nPrice: {specifications}\n\n\n")
+                
+                # --------------------------
+                # HART
+                # --------------------------
+                elif "hart" in domain:
+                    # --- Extract Specs ---
+                    specs_tab = page.locator('button:has-text("Specifications")')
+                    await specs_tab.click(force=True)
+
+                    # Extract specifications text
+                    specs = await page.locator('.specs-table__list').text_content()
+                    specifications = specs.strip() if specs else "No specs found"
+                    print(f"\nSpecifications:\n{specifications}\n")
+
+
                 # ---------------------------
                 # Fallbacks
                 # ---------------------------
-                if not image_src:
-                    og_img = await page.query_selector('meta[property="og:image"]')
-                    image_src = await og_img.get_attribute('content') if og_img else None
+            
+                
 
-                if not price:
-                    meta_price = await page.query_selector('meta[itemprop="price"]')
-                    price = await meta_price.get_attribute('content') if meta_price else None
-
-                return {
-                    'image_src': image_src or 'Not found',
-                    'price': price.strip() if price else 'Not found'
-                }
 
             except Exception as e:
                 print(f"[ERROR] Scraping failed: {str(e)}")
