@@ -28,9 +28,11 @@ def scrape_product():
 
     if not url:
         return jsonify({'error': 'Missing product URL'}), 400
+        
 
     async def run_scraper():
         domain = get_retailer_domain(url)
+        print("Domain:", domain)
         async with async_playwright() as p:
             # Choose browser dynamically
             if browser_type == 'webkit':
